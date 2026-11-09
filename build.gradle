@@ -1,0 +1,22 @@
+plugins {
+    id 'org.springframework.boot' version '4.0.9' apply false
+}
+
+subprojects {
+    repositories {
+        mavenCentral()
+    }
+
+    plugins.withType(JavaPlugin).configureEach {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(25)
+            }
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.compilerArgs += '-parameters'
+        }
+    }
+}

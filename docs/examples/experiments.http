@@ -1,0 +1,54 @@
+@baseUrl = http://localhost:8080
+
+### Форма смешанной нагрузки
+# 200. Карточки сценариев находятся в scenarios, выбранная форма — в form.
+# form.sections[].fields[].name — путь в теле POST и идентификатор для fieldErrors.
+# Контролы по type: INTEGER — число, BOOLEAN — переключатель, STRING — текст, ENUM — выбор из options.
+GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=mixed
+Accept: application/json
+
+### Проверить форму с изменёнными значениями
+# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed",
+  "settings": {
+    "shared_buffers": 128,
+    "max_connections": 100
+  },
+  "params": {
+    "clients": 16,
+    "durationSec": 30,
+    "rows": 100000,
+    "readPercent": 80
+  }
+}
+
+### Проверить конфигурацию со значениями по умолчанию
+# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed"
+}
+
+### Ошибки в двух полях
+# 400 {"code":"VALIDATION_FAILED","fieldErrors":[{"field":"settings.shared_buffers","message":"Минимальное значение — 16"},{"field":"params.readPercent","message":"Максимальное значение — 100"}]}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed",
+  "settings": {"shared_buffers": 5},
+  "params": {"readPercent": 120}
+}
+
+### Неизвестный сценарий
+# 404
+GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=unknown

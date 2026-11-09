@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: dbehave
+  flyway:
+    default-schema: public
