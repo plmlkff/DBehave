@@ -3,7 +3,9 @@
 - `backend` — Spring Boot API
 - `frontend` — React-интерфейс; в Docker готовую сборку раздаёт Nginx
 - `plugin-api` — интерфейс СУБД-плагинов и модели конфигурации контейнеров
-- `plugins` — реализованные плагины
+- `plugins` — реализованные плагины:
+  - `plugins/postgres` — описание сценариев PostgreSQL и план контейнеров
+  - [`plugins/postgres-load`](plugins/postgres-load/README.md) — образ-нагрузчик, контракт с воркером, метрики и дашборд Grafana
 - `infra` — общий docker compose
 
 ```sh

@@ -6,7 +6,6 @@ public record Scenario(
         String id,
         String title,
         String description,
-        String loadGeneratorTag,
         List<FieldSpec> settings,
         List<FieldSpec> params
 ) {

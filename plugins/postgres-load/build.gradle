@@ -1,0 +1,24 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation 'org.postgresql:postgresql:42.7.14'
+    implementation 'io.prometheus:prometheus-metrics-core:1.10.0'
+    implementation 'io.prometheus:prometheus-metrics-exposition-textformats:1.10.0'
+
+    testImplementation platform('org.junit:junit-bom:6.1.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core:3.27.7'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'io.dbehave.plugin.postgres.load.Main'
+    applicationName = 'postgres-load'
+    applicationDefaultJvmArgs = ['-XX:MaxRAMPercentage=75']
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

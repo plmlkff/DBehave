@@ -73,11 +73,14 @@ class ExperimentControllerTest {
                 .andExpect(jsonPath("$.schemaVersion").value(1))
                 .andExpect(jsonPath("$.scenarios[*].id", containsInAnyOrder(
                         "mixed", "read-heavy", "write-heavy", "long-tx-locks", "isolation")))
-                .andExpect(jsonPath("$.scenarios[0].selected").value(true))
+                .andExpect(jsonPath("$.scenarios[?(@.id == 'mixed')].selected").value(true))
+                .andExpect(jsonPath("$.scenarios[?(@.id == 'read-heavy')].selected").value(false))
                 .andExpect(jsonPath("$.form.sections[0].fields[0].name").value("settings.shared_buffers"))
-                .andExpect(jsonPath("$.form.sections[0].fields[0].defaultValue").value(256))
+                .andExpect(jsonPath("$.form.sections[0].fields[0].defaultValue").value(128))
                 .andExpect(jsonPath("$.form.sections[1].fields[*].name", containsInAnyOrder(
-                        "params.clients", "params.durationSec", "params.rows", "params.readPercent")))
+                        "params.clients", "params.durationSec", "params.warmupSec", "params.datasetRows",
+                        "params.readWeight", "params.updateWeight", "params.insertWeight",
+                        "params.distribution", "params.fillfactor")))
                 .andExpect(jsonPath("$.form.sections[0].id").value("settings"))
                 .andExpect(jsonPath("$.form.sections[1].id").value("params"))
                 .andExpect(jsonPath("$.title").doesNotHaveJsonPath())
@@ -103,14 +106,13 @@ class ExperimentControllerTest {
                         .param("pluginId", "postgres")
                         .param("scenarioId", "read-heavy"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.scenarios[0].selected").value(false))
-                .andExpect(jsonPath("$.scenarios[1].selected").value(true))
-                .andExpect(jsonPath("$.form.sections[0].fields[2].type").value("NUMBER"))
-                .andExpect(jsonPath("$.form.sections[0].fields[2].min").value(0.1))
-                .andExpect(jsonPath("$.form.sections[1].fields[3].type").value("BOOLEAN"))
-                .andExpect(jsonPath("$.form.sections[1].fields[3].defaultValue").value(false))
-                .andExpect(jsonPath("$.form.sections[1].fields[4].type").value("ENUM"))
-                .andExpect(jsonPath("$.form.sections[1].fields[4].options", containsInAnyOrder("uniform", "hotspot")));
+                .andExpect(jsonPath("$.scenarios[?(@.id == 'read-heavy')].selected").value(true))
+                .andExpect(jsonPath(field("settings.random_page_cost") + ".type").value("NUMBER"))
+                .andExpect(jsonPath(field("settings.random_page_cost") + ".min").value(0.1))
+                .andExpect(jsonPath(field("params.categoryIndex") + ".type").value("BOOLEAN"))
+                .andExpect(jsonPath(field("params.categoryIndex") + ".defaultValue").value(false))
+                .andExpect(jsonPath(field("params.distribution") + ".type").value("ENUM"))
+                .andExpect(jsonPath(field("params.distribution") + ".options[*]", containsInAnyOrder("uniform", "hotspot")));
     }
 
     @Test
@@ -186,7 +188,7 @@ class ExperimentControllerTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "{\"pluginId\":\"postgres\",\"scenarioId\":\"mixed\",\"setting\":{\"shared_buffers\":128}}",
-            "{\"pluginId\":\"postgres\",\"scenarioId\":\"mixed\",\"params\":{\"rows\":100,\"rows\":200}}"
+            "{\"pluginId\":\"postgres\",\"scenarioId\":\"mixed\",\"params\":{\"datasetRows\":100,\"datasetRows\":200}}"
     })
     void rejectsAmbiguousRequestBodies(String body) throws Exception {
         mvc.perform(post("/api/experiments/validate")
@@ -194,6 +196,10 @@ class ExperimentControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    private static String field(String name) {
+        return "$.form.sections[*].fields[?(@.name == '%s')]".formatted(name);
     }
 
     @Test

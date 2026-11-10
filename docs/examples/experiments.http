@@ -24,8 +24,8 @@ Content-Type: application/json
   "params": {
     "clients": 16,
     "durationSec": 30,
-    "rows": 100000,
-    "readPercent": 80
+    "datasetRows": 100000,
+    "readWeight": 80
   }
 }
 
@@ -40,7 +40,7 @@ Content-Type: application/json
 }
 
 ### Ошибки в двух полях
-# 400 {"code":"VALIDATION_FAILED","fieldErrors":[{"field":"settings.shared_buffers","message":"Минимальное значение — 16"},{"field":"params.readPercent","message":"Максимальное значение — 100"}]}
+# 400 {"code":"VALIDATION_FAILED","fieldErrors":[{"field":"settings.shared_buffers","message":"Минимальное значение — 16"},{"field":"params.readWeight","message":"Максимальное значение — 100"}]}
 POST {{baseUrl}}/api/experiments/validate
 Content-Type: application/json
 
@@ -48,7 +48,7 @@ Content-Type: application/json
   "pluginId": "postgres",
   "scenarioId": "mixed",
   "settings": {"shared_buffers": 5},
-  "params": {"readPercent": 120}
+  "params": {"readWeight": 120}
 }
 
 ### Неизвестный сценарий
