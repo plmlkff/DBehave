@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: dbehave
+  flyway:
+    default-schema: public
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      use-big-decimal-for-floats: true

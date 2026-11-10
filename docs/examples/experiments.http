@@ -1,0 +1,104 @@
+@baseUrl = http://localhost:8080
+
+### Форма смешанной нагрузки
+# 200. Карточки сценариев находятся в scenarios, выбранная форма — в form.
+# Фронтенд рисует заголовки секций по id (settings и params) и отправляет форму на POST /api/experiments/validate.
+# form.sections[].fields[].name — путь в теле POST и идентификатор для fieldErrors.
+# Неизвестные ключи верхнего уровня и повторяющиеся JSON-ключи возвращают 400 INVALID_REQUEST.
+# Контролы по type: INTEGER — целое, NUMBER — число с дробной частью, BOOLEAN — переключатель, STRING — текст, ENUM — выбор из options.
+GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=mixed
+Accept: application/json
+
+### Проверить форму с изменёнными значениями
+# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed",
+  "settings": {
+    "shared_buffers": 128,
+    "max_connections": 100
+  },
+  "params": {
+    "clients": 16,
+    "durationSec": 30,
+    "rows": 100000,
+    "readPercent": 80
+  }
+}
+
+### Проверить конфигурацию со значениями по умолчанию
+# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed"
+}
+
+### Ошибки в двух полях
+# 400 {"code":"VALIDATION_FAILED","fieldErrors":[{"field":"settings.shared_buffers","message":"Минимальное значение — 16"},{"field":"params.readPercent","message":"Максимальное значение — 100"}]}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed",
+  "settings": {"shared_buffers": 5},
+  "params": {"readPercent": 120}
+}
+
+### Неизвестный сценарий
+# 404
+GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=unknown
+
+### Форма интенсивного чтения
+GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=read-heavy
+Accept: application/json
+
+### Проверить параметры интенсивного чтения
+# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "read-heavy",
+  "settings": {"random_page_cost": 1.25},
+  "params": {"categoryIndex": true, "distribution": "hotspot"}
+}
+
+### Интенсивная запись пачками
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "write-heavy",
+  "settings": {"synchronous_commit": "off"},
+  "params": {"batchSize": 100, "extraIndexes": 2}
+}
+
+### Долгая транзакция с таймаутом блокировки
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "long-tx-locks",
+  "settings": {"lock_timeout": 500},
+  "params": {"holdSec": 10, "blockerMode": "active"}
+}
+
+### Проверка потерянных обновлений при REPEATABLE READ
+POST {{baseUrl}}/api/experiments/validate
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "isolation",
+  "params": {"isolationLevel": "REPEATABLE READ", "writeMode": "read-modify-write"}
+}

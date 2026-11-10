@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://meta-db:5432/dbehave
+      SPRING_DATASOURCE_USERNAME: dbehave
+      SPRING_DATASOURCE_PASSWORD: dbehave-local
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      meta-db:
+        condition: service_healthy
+  meta-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: dbehave
+      POSTGRES_USER: dbehave
+      POSTGRES_PASSWORD: dbehave-local
+    volumes:
+      - meta-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "dbehave", "-d", "dbehave"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  meta-data:
