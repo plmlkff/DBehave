@@ -3,31 +3,49 @@ package io.dbehave.plugin.postgres;
 import io.dbehave.plugin.DatabasePlugin;
 import io.dbehave.plugin.ExperimentPlan;
 import io.dbehave.plugin.ExperimentPlan.ContainerSpec;
+import io.dbehave.plugin.FieldSpec;
 import io.dbehave.plugin.Scenario;
 
-import java.util.HashMap;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Плагин PostgreSQL: описывает сценарии и строит план из двух контейнеров.
+ * <ul>
+ *     <li>БД — официальный образ {@value #DATABASE_IMAGE}, настройки передаются через {@code postgres -c};</li>
+ *     <li>нагрузчик — образ {@value #LOAD_GENERATOR_IMAGE}, параметры передаются переменными окружения.</li>
+ * </ul>
+ * Воркер должен поместить оба контейнера в одну сеть, где БД доступна по имени {@value #DATABASE_HOST}.
+ * Контракт нагрузчика описан в {@code plugins/postgres-load/README.md}.
+ */
 public final class PostgresPlugin implements DatabasePlugin {
-    private static final String DATABASE_NAME = "dbehave_experiment";
-    private static final String DATABASE_USER = "dbehave";
-    private static final String LOAD_GENERATOR_IMAGE = "dbehave/postgres-load";
+    public static final String DATABASE_IMAGE = "postgres:18";
+    public static final String LOAD_GENERATOR_IMAGE = "dbehave/postgres-load:0.1.0";
+    public static final String DATABASE_HOST = "database";
+
+    static final String DATABASE_NAME = "dbehave";
+    static final String DATABASE_USER = "dbehave";
+    // Контейнер одноразовый и недоступен снаружи, поэтому секретность пароля не важна
+    static final String DATABASE_PASSWORD = "dbehave";
 
     private final List<Scenario> scenarios;
-    private final Map<String, PostgresScenario> scenariosById;
+    private final Map<String, Scenario> scenariosById;
 
     public PostgresPlugin() {
-        this(List.of(new MixedScenario(), new ReadHeavyScenario(), new WriteHeavyScenario(),
-                new LongTxLocksScenario(), new IsolationScenario()));
+        this(PostgresScenarios.all());
     }
 
-    PostgresPlugin(List<PostgresScenario> scenarios) {
-        this.scenarios = scenarios.stream().map(scenario -> scenario.definition().describe()).toList();
-        this.scenariosById = scenarios.stream().collect(Collectors.toUnmodifiableMap(
-                scenario -> scenario.definition().id(), Function.identity()));
+    PostgresPlugin(List<Scenario> scenarios) {
+        this.scenarios = List.copyOf(scenarios);
+        this.scenariosById = scenarios.stream()
+                .collect(Collectors.toUnmodifiableMap(Scenario::id, Function.identity()));
     }
 
     @Override
@@ -47,37 +65,50 @@ public final class PostgresPlugin implements DatabasePlugin {
 
     @Override
     public ExperimentPlan prepare(Scenario scenario, Map<String, Object> settings, Map<String, Object> params) {
-        var selected = scenariosById.get(scenario.id());
-        if (selected == null) {
+        Scenario known = scenariosById.get(scenario.id());
+        if (known == null) {
             throw new IllegalArgumentException("Unsupported PostgreSQL scenario: " + scenario.id());
         }
-        var definition = selected.definition();
-
-        // The executor supplies the database network alias and matching credentials for both containers
-        var loadEnvironment = new HashMap<>(Map.of(
-                "DB_HOST", "database",
-                "DB_PORT", "5432",
-                "DB_NAME", DATABASE_NAME,
-                "DB_USER", DATABASE_USER,
-                "SCENARIO", definition.id()
-        ));
-        loadEnvironment.putAll(selected.loadEnvironment(params));
-        var loadGenerator = new ContainerSpec(
-                LOAD_GENERATOR_IMAGE + ":" + definition.loadGeneratorTag(), loadEnvironment, List.of());
-        return new ExperimentPlan(databaseContainer(definition, settings), loadGenerator);
+        return new ExperimentPlan(database(known, settings), loadGenerator(known, params));
     }
 
-    private static ContainerSpec databaseContainer(PostgresScenario.Definition definition, Map<String, Object> settings) {
-        var environment = new HashMap<>(Map.of("POSTGRES_DB", DATABASE_NAME, "POSTGRES_USER", DATABASE_USER));
-        var command = new StringBuilder("exec docker-entrypoint.sh postgres");
-
-        // Only setting names declared by the plugin enter the command, and values come from the environment
-        for (var setting : definition.settings()) {
-            String envKey = setting.environmentKey();
-            environment.put(envKey, setting.environmentValue(settings));
-            command.append(" -c \"").append(setting.spec().key()).append("=${").append(envKey).append("}\"");
+    private static ContainerSpec database(Scenario scenario, Map<String, Object> settings) {
+        // docker-entrypoint.sh в начале команды: она одинаково работает, если воркер передаёт её как CMD
+        // (entrypoint образа запустит её как есть) и как ENTRYPOINT
+        var command = new ArrayList<>(List.of("docker-entrypoint.sh", "postgres"));
+        for (FieldSpec spec : scenario.settings()) {
+            Object value = Objects.requireNonNull(settings.get(spec.key()), spec.key());
+            command.add("-c");
+            command.add(spec.key() + "=" + PgSettings.byKey(spec.key()).format(value));
         }
+        var environment = Map.of(
+                "POSTGRES_DB", DATABASE_NAME,
+                "POSTGRES_USER", DATABASE_USER,
+                "POSTGRES_PASSWORD", DATABASE_PASSWORD);
+        return new ContainerSpec(DATABASE_IMAGE, environment, command);
+    }
 
-        return new ContainerSpec("postgres:18", environment, List.of("sh", "-ec", command.toString()));
+    private static ContainerSpec loadGenerator(Scenario scenario, Map<String, Object> params) {
+        var environment = new LinkedHashMap<String, String>();
+        environment.put("DB_HOST", DATABASE_HOST);
+        environment.put("DB_PORT", "5432");
+        environment.put("DB_NAME", DATABASE_NAME);
+        environment.put("DB_USER", DATABASE_USER);
+        environment.put("DB_PASSWORD", DATABASE_PASSWORD);
+        environment.put("SCENARIO", scenario.id());
+        for (FieldSpec spec : scenario.params()) {
+            Object value = Objects.requireNonNull(params.get(spec.key()), spec.key());
+            environment.put(environmentName(spec.key()), formatParam(value));
+        }
+        return new ContainerSpec(LOAD_GENERATOR_IMAGE, environment, List.of());
+    }
+
+    /** {@code durationSec} → {@code DURATION_SEC}. */
+    static String environmentName(String key) {
+        return key.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase(Locale.ROOT);
+    }
+
+    private static String formatParam(Object value) {
+        return value instanceof Number number ? new BigDecimal(number.toString()).toPlainString() : value.toString();
     }
 }

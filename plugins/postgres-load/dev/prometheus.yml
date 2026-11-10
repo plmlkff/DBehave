@@ -1,0 +1,10 @@
+# В бою метрики нагрузчика забирает воркер и сам добавляет run_id.
+# Здесь его роль играет Prometheus: опрашивает нагрузчик и ставит run_id=local.
+global:
+  scrape_interval: 2s
+scrape_configs:
+  - job_name: postgres-load
+    static_configs:
+      - targets: ["load:8080"]
+        labels:
+          run_id: local
