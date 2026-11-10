@@ -33,7 +33,7 @@ npm run dev
 Из корня репозитория:
 
 ```sh
-docker compose -f infra/compose.yaml up --build -d
+docker compose -f infra/compose.yaml up --build --wait
 ```
 
 Интерфейс: `http://localhost:3000`. Запускаются frontend, backend и служебная БД.
