@@ -5,12 +5,16 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.sql.Timestamp;
@@ -56,6 +60,8 @@ class PluginPlatformIntegrationTest {
         mvc.perform(get("/api/plugins/postgres"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.collectorId").value("postgres"))
+                .andExpect(jsonPath("$.loaderImageName").value("dbehave/postgres-load:0.1.0"))
+                .andExpect(jsonPath("$.grafanaUrlTemplate").value("http://localhost:3001/d/dbehave-postgres?var-run_id={runId}"))
                 .andExpect(jsonPath("$.scenarios[*].id", hasItem("mixed")));
         mvc.perform(get("/api/context-collectors"))
                 .andExpect(status().isOk())
@@ -70,6 +76,38 @@ class PluginPlatformIntegrationTest {
     }
 
     @Test
+    @Transactional
+    @SuppressWarnings("unchecked")
+    void migratesLegacyScenarioMetadataAndPreservesCustomizedImageConfiguration() throws Exception {
+        var plugin = genericPlugin();
+        plugin.put("title", "Customized legacy plugin");
+        plugin.put("loaderImageName", "example/legacy-load:{scenarioTag}");
+        var scenarios = (List<Map<String, Object>>) plugin.get("scenarios");
+        var scenario = new LinkedHashMap<>(scenarios.getFirst());
+        scenario.put("loadGeneratorTag", "legacy-tag");
+        plugin.put("scenarios", List.of(scenario));
+        jdbc.update("INSERT INTO dbehave.plugins (id, definition) VALUES (?, CAST(? AS jsonb))",
+                plugin.get("id"), json.writeValueAsString(plugin));
+
+        jdbc.execute((ConnectionCallback<Void>) connection -> {
+            ScriptUtils.executeSqlScript(connection,
+                    new ClassPathResource("db/migration/V3__align_catalog_with_shared_loader_image.sql"));
+            return null;
+        });
+
+        mvc.perform(get("/api/plugins/{id}", plugin.get("id")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Customized legacy plugin"))
+                .andExpect(jsonPath("$.loaderImageName").value("example/legacy-load:{scenarioTag}"))
+                .andExpect(jsonPath("$.scenarios[0].id").value("custom-scenario"))
+                .andExpect(jsonPath("$.scenarios[0].loadGeneratorTag").doesNotExist());
+        mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("pluginId", plugin.get("id"), "scenarioId", "custom-scenario"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[*].field", hasItem("loaderImageName")));
+    }
+
+    @Test
     void registersAnArbitraryScenarioAndBuildsBduiFromTheDatabase() throws Exception {
         var plugin = genericPlugin();
         var id = (String) plugin.get("id");
@@ -77,7 +115,7 @@ class PluginPlatformIntegrationTest {
 
         mvc.perform(get("/api/plugins/{id}", id))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loaderImageName").value("example/load:{scenarioTag}"))
+                .andExpect(jsonPath("$.loaderImageName").value("example/load:custom"))
                 .andExpect(jsonPath("$.scenarios[0].id").value("custom-scenario"));
         mvc.perform(get("/api/ui/experiment").param("pluginId", id).param("scenarioId", "custom-scenario"))
                 .andExpect(status().isOk())
@@ -142,7 +180,7 @@ class PluginPlatformIntegrationTest {
             }
             plugin.put("scenarios", List.of(Map.of(
                     "id", "custom-scenario", "title", "Custom scenario", "description", "Invalid field schema",
-                    "loadGeneratorTag", "custom", "settings", List.of(), "params", List.of(field))));
+                    "settings", List.of(), "params", List.of(field))));
             mvc.perform(post("/api/plugins").contentType(MediaType.APPLICATION_JSON)
                             .content(json.writeValueAsString(plugin)))
                     .andExpect(status().isBadRequest());
@@ -154,14 +192,12 @@ class PluginPlatformIntegrationTest {
     @Test
     void rejectsInvalidPostgresCollectorConfigurationBeforeRegistration() throws Exception {
         for (String invalidConfiguration : List.of("environment", "command", "setting")) {
-            var plugin = genericPlugin();
-            plugin.put("collectorId", "postgres");
+            var plugin = postgresPlugin();
             switch (invalidConfiguration) {
                 case "environment" -> plugin.put("databaseImageContext", Map.of("environment", "not-an-object"));
                 case "command" -> plugin.put("databaseImageContext", Map.of("command", List.of()));
                 case "setting" -> plugin.put("scenarios", List.of(Map.of(
                         "id", "custom-scenario", "title", "Custom scenario", "description", "Invalid PostgreSQL setting",
-                        "loadGeneratorTag", "custom",
                         "settings", List.of(integerField("invalid setting;", 64, 1, 1024)),
                         "params", List.of())));
                 default -> throw new AssertionError(invalidConfiguration);
@@ -178,8 +214,7 @@ class PluginPlatformIntegrationTest {
 
     @Test
     void translatesCollectorErrorsFromDirectDatabaseEditsWithoutCreatingTasks() throws Exception {
-        var plugin = genericPlugin();
-        plugin.put("collectorId", "postgres");
+        var plugin = postgresPlugin();
         register(plugin);
         jdbc.update("""
                 update dbehave.plugins
@@ -209,10 +244,9 @@ class PluginPlatformIntegrationTest {
 
         plugin.put("title", "Updated plugin");
         plugin.put("databaseImageName", "example/database:2");
-        plugin.put("loaderImageName", "example/load-v2:{scenarioTag}");
+        plugin.put("loaderImageName", "example/load-v2:custom");
         plugin.put("scenarios", List.of(Map.of(
                 "id", "custom-scenario", "title", "Updated scenario", "description", "Updated schema",
-                "loadGeneratorTag", "custom",
                 "settings", List.of(integerField("cacheSize", 128, 1, 1024)),
                 "params", List.of(integerField("rps", 300, 1, 10000)))));
         mvc.perform(put("/api/plugins/{id}", id).contentType(MediaType.APPLICATION_JSON)
@@ -333,19 +367,23 @@ class PluginPlatformIntegrationTest {
                                   "pluginId": "postgres",
                                   "scenarioId": "mixed",
                                   "settings": {"shared_buffers": 128},
-                                  "params": {"rows": 100000}
+                                  "params": {"datasetRows": 100000, "readWeight": 80}
                                 }
                                 """))
                 .andExpect(status().isCreated()).andReturn());
         var context = persistedContext(UUID.fromString((String) result.get("id")));
         assertThat(context.get("databaseImageName")).isEqualTo("postgres:18");
-        assertThat(context.get("loaderImageName")).isEqualTo("dbehave/postgres-load:mixed");
+        assertThat(context.get("loaderImageName")).isEqualTo("dbehave/postgres-load:0.1.0");
         assertThat(imageContext(imageContext(context, "databaseImageContext"), "environment"))
                 .containsEntry("DBEHAVE_SHARED_BUFFERS", "128MB")
-                .containsEntry("DBEHAVE_MAX_CONNECTIONS", "100");
+                .containsEntry("DBEHAVE_MAX_CONNECTIONS", "100")
+                .containsEntry("DBEHAVE_WORK_MEM", "4096kB")
+                .containsEntry("DBEHAVE_AUTOVACUUM", "on");
         assertThat(imageContext(imageContext(context, "loaderImageContext"), "environment"))
-                .containsEntry("ROWS", "100000")
-                .containsEntry("CLIENTS", "32")
+                .containsEntry("DATASET_ROWS", "100000")
+                .containsEntry("READ_WEIGHT", "80")
+                .containsEntry("CLIENTS", "16")
+                .containsEntry("DB_PASSWORD", "dbehave")
                 .containsEntry("SCENARIO", "mixed");
     }
 
@@ -437,12 +475,22 @@ class PluginPlatformIntegrationTest {
         return jdbc.queryForObject("select count(*) from worker.tasks", Long.class);
     }
 
+    private static Map<String, Object> postgresPlugin() {
+        var plugin = genericPlugin();
+        plugin.put("collectorId", "postgres");
+        plugin.put("scenarios", List.of(Map.of(
+                "id", "custom-scenario", "title", "Custom scenario", "description", "PostgreSQL schema",
+                "settings", List.of(integerField("shared_buffers", 128, 16, 8192)),
+                "params", List.of(integerField("rps", 100, 1, 10000)))));
+        return plugin;
+    }
+
     private static Map<String, Object> genericPlugin() {
         var definition = new LinkedHashMap<String, Object>();
         definition.put("id", "integration-" + UUID.randomUUID());
         definition.put("title", "A plugin defined entirely in the database");
         definition.put("collectorId", "generic");
-        definition.put("loaderImageName", "example/load:{scenarioTag}");
+        definition.put("loaderImageName", "example/load:custom");
         definition.put("databaseImageName", "example/database:1");
         definition.put("grafanaUrlTemplate", "https://grafana.example.test/d/custom?var-run_id={runId}");
         definition.put("loaderImageContext", Map.of("command", List.of("load"), "core_max", 0.25, "mem_max", 268_435_456));
@@ -450,7 +498,6 @@ class PluginPlatformIntegrationTest {
                 "core_max", 1, "mem_max", 1_073_741_824));
         definition.put("scenarios", List.of(Map.of(
                 "id", "custom-scenario", "title", "Custom scenario", "description", "Database-defined schema",
-                "loadGeneratorTag", "custom",
                 "settings", List.of(integerField("cacheSize", 64, 1, 1024)),
                 "params", List.of(integerField("rps", 100, 1, 10000)))));
         return definition;

@@ -5,18 +5,16 @@ import io.dbehave.plugin.ImageContexts;
 import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /** PostgreSQL-specific conversion; scenario schemas and image names come from the catalog. */
 public final class PostgresContextCollector implements ContextCollector {
-    private static final String DATABASE_NAME = "dbehave_experiment";
-    private static final String DATABASE_USER = "dbehave";
     private static final Set<String> RESERVED_LOADER_ENVIRONMENT_KEYS = Set.of(
             "SCENARIO", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "PGPASSWORD");
 
@@ -32,8 +30,9 @@ public final class PostgresContextCollector implements ContextCollector {
     ) {
         var database = new HashMap<>(plugin.databaseImageContext());
         var databaseEnvironment = environment(database);
-        databaseEnvironment.putIfAbsent("POSTGRES_DB", DATABASE_NAME);
-        databaseEnvironment.putIfAbsent("POSTGRES_USER", DATABASE_USER);
+        databaseEnvironment.putIfAbsent("POSTGRES_DB", PostgresPlugin.DATABASE_NAME);
+        databaseEnvironment.putIfAbsent("POSTGRES_USER", PostgresPlugin.DATABASE_USER);
+        databaseEnvironment.putIfAbsent("POSTGRES_PASSWORD", PostgresPlugin.DATABASE_PASSWORD);
         var command = command(database);
         var settingEnvironmentKeys = new HashSet<String>();
         for (var field : scenario.settings()) {
@@ -41,7 +40,9 @@ public final class PostgresContextCollector implements ContextCollector {
             if (!key.matches("[A-Za-z_][A-Za-z0-9_.]*")) {
                 throw new IllegalArgumentException("Unsupported PostgreSQL setting: " + key);
             }
-            String value = settings.get(key).toString() + (key.equals("shared_buffers") ? "MB" : "");
+            var setting = PgSettings.ALL.stream().filter(known -> known.key().equals(key)).findFirst()
+                    .orElseGet(() -> new PgSetting(field, null));
+            String value = setting.format(settings.get(key));
             String environmentKey = "DBEHAVE_" + environmentKey(key);
             if (!settingEnvironmentKeys.add(environmentKey)) {
                 throw new IllegalArgumentException("Duplicate database setting environment key: " + environmentKey);
@@ -55,7 +56,7 @@ public final class PostgresContextCollector implements ContextCollector {
 
         var loader = new HashMap<>(plugin.loaderImageContext());
         var loaderEnvironment = new HashMap<String, String>();
-        loaderEnvironment.put("DB_HOST", "database");
+        loaderEnvironment.put("DB_HOST", PostgresPlugin.DATABASE_HOST);
         loaderEnvironment.put("DB_PORT", "5432");
         loaderEnvironment.put("DB_NAME", databaseEnvironment.get("POSTGRES_DB"));
         loaderEnvironment.put("DB_USER", databaseEnvironment.get("POSTGRES_USER"));
@@ -67,15 +68,17 @@ public final class PostgresContextCollector implements ContextCollector {
         loaderEnvironment.put("SCENARIO", scenario.id());
         var parameterEnvironmentKeys = new HashSet<String>();
         for (var field : scenario.params()) {
-            // Existing loader images expose datasetRows through ROWS, while BDUI retains its public key.
-            String environmentKey = field.key().equals("datasetRows") ? "ROWS" : environmentKey(field.key());
+            String environmentKey = environmentKey(field.key());
             if (RESERVED_LOADER_ENVIRONMENT_KEYS.contains(environmentKey)) {
                 throw new IllegalArgumentException("Reserved loader environment key: " + environmentKey);
             }
             if (!parameterEnvironmentKeys.add(environmentKey)) {
                 throw new IllegalArgumentException("Duplicate parameter environment key: " + environmentKey);
             }
-            loaderEnvironment.put(environmentKey, params.get(field.key()).toString());
+            Object value = params.get(field.key());
+            String formatted = value instanceof Number number
+                    ? new BigDecimal(number.toString()).toPlainString() : value.toString();
+            loaderEnvironment.put(environmentKey, formatted);
         }
         loader.put("environment", Map.copyOf(loaderEnvironment));
         loader.putIfAbsent("command", List.of());
@@ -86,17 +89,16 @@ public final class PostgresContextCollector implements ContextCollector {
     public static PluginDefinition defaultDefinition() {
         var plugin = new PostgresPlugin();
         return new PluginDefinition(
-                plugin.id(), plugin.title(), "postgres", "dbehave/postgres-load:{scenarioTag}", "postgres:18",
-                "http://localhost:3000/d/postgres?var-run_id={runId}",
+                plugin.id(), plugin.title(), "postgres", PostgresPlugin.LOAD_GENERATOR_IMAGE, PostgresPlugin.DATABASE_IMAGE,
+                "http://localhost:3001/d/dbehave-postgres?var-run_id={runId}",
                 Map.of(),
-                Map.of("environment", Map.of("POSTGRES_PASSWORD", "dbehave-experiment")),
+                Map.of("environment", Map.of("POSTGRES_PASSWORD", PostgresPlugin.DATABASE_PASSWORD)),
                 plugin.scenarios()
         );
     }
 
     private static String environmentKey(String key) {
-        return key.replaceAll("([a-z0-9])([A-Z])", "$1_$2")
-                .replaceAll("[^A-Za-z0-9_]", "_").toUpperCase(Locale.ROOT);
+        return PostgresPlugin.environmentName(key).replaceAll("[^A-Za-z0-9_]", "_");
     }
 
     private static Map<String, String> environment(Map<String, Object> context) {
@@ -116,7 +118,7 @@ public final class PostgresContextCollector implements ContextCollector {
 
     private static List<String> command(Map<String, Object> context) {
         if (!context.containsKey("command")) {
-            return new ArrayList<>(List.of("postgres"));
+            return new ArrayList<>(List.of("docker-entrypoint.sh", "postgres"));
         }
         if (!(context.get("command") instanceof List<?> configured) || configured.isEmpty()) {
             throw new IllegalArgumentException("PostgreSQL command must be a nonempty array of strings");

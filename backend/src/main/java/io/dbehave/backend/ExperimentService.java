@@ -53,9 +53,7 @@ class ExperimentService {
         InputValidation.resources("loaderImageContext", loaderContext, null, errors);
         InputValidation.resources("databaseImageContext", databaseContext, null, errors);
         InputValidation.rejectErrors(errors);
-        String loaderImage = plugin.loaderImageName().replace("{scenarioTag}",
-                scenario.loadGeneratorTag() == null ? "" : scenario.loadGeneratorTag());
-        return new PreparedExperiment(new ExecutionContext(loaderImage, plugin.databaseImageName(), loaderContext, databaseContext),
+        return new PreparedExperiment(new ExecutionContext(plugin.loaderImageName(), plugin.databaseImageName(), loaderContext, databaseContext),
                 plugin.grafanaUrlTemplate());
     }
 

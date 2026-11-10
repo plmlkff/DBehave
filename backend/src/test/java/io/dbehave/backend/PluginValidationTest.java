@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class PluginValidationTest {
     @Test
-    void acceptsAnArbitraryStoredScenarioWithAValidImageTemplateAndResources() {
+    void acceptsAnArbitraryStoredScenarioWithAnImageAndResources() {
         assertThatCode(() -> PluginValidation.validate(plugin(
                 "https://grafana.example.test/d/custom?var-run_id={runId}",
                 List.of(scenario("custom", List.of(FieldSpec.integer("rps", "RPS", "", 100, 1, 1000, null)))),
@@ -38,6 +38,15 @@ class PluginValidationTest {
     }
 
     @Test
+    void requiresAConcreteImageSharedByAllScenarios() {
+        var definition = new PluginDefinition("custom", "Custom", "generic", "example/load:{scenarioTag}",
+                "example/database:1", "https://grafana.example.test/d/custom?var-run_id={runId}",
+                Map.of(), Map.of(), List.of(scenario("custom", List.of())));
+        var failure = catchThrowableOfType(() -> PluginValidation.validate(definition), InvalidExperimentException.class);
+        assertThat(failure.fieldErrors()).extracting(FieldError::field).containsExactly("loaderImageName");
+    }
+
+    @Test
     void rejectsAmbiguousSchemasAndInvalidDefaultsBeforeTheyReachUsers() {
         var inverted = new FieldSpec("count", "Count", "", FieldSpec.Type.INTEGER,
                 5, BigDecimal.TEN, BigDecimal.ONE, null, List.of());
@@ -53,11 +62,11 @@ class PluginValidationTest {
     }
 
     private static Scenario scenario(String id, List<FieldSpec> params) {
-        return new Scenario(id, "Custom", "", "custom", List.of(), params);
+        return new Scenario(id, "Custom", "", List.of(), params);
     }
 
     private static PluginDefinition plugin(String grafana, List<Scenario> scenarios, Map<String, Object> context) {
-        return new PluginDefinition("custom", "Custom", "generic", "example/load:{scenarioTag}",
+        return new PluginDefinition("custom", "Custom", "generic", "example/load:1",
                 "example/database:1", grafana, context, Map.of(), scenarios);
     }
 }

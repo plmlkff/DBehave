@@ -5,6 +5,7 @@ import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static io.dbehave.plugin.FieldSpec.integer;
 import static io.dbehave.plugin.FieldSpec.string;
@@ -21,10 +23,49 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PostgresContextCollectorTest {
     private final PostgresContextCollector collector = new PostgresContextCollector();
 
+    @ParameterizedTest
+    @MethodSource("upstreamScenarios")
+    void matchesUpstreamContainerContractForEveryScenario(Scenario scenario) {
+        var plugin = new PostgresPlugin();
+        var definition = PostgresContextCollector.defaultDefinition();
+        var settings = new HashMap<String, Object>();
+        var params = new HashMap<String, Object>();
+        scenario.settings().forEach(field -> settings.put(field.key(), field.defaultValue()));
+        scenario.params().forEach(field -> params.put(field.key(), field.defaultValue()));
+
+        var expected = plugin.prepare(scenario, settings, params);
+        var actual = collector.collect(definition, scenario, settings, params);
+
+        assertThat(definition.databaseImageName()).isEqualTo(expected.database().image());
+        assertThat(definition.loaderImageName()).isEqualTo(expected.loadGenerator().image());
+        assertThat(actual.databaseImageContext().get("command")).isEqualTo(expected.database().command());
+        assertThat(actual.loaderImageContext().get("command")).isEqualTo(expected.loadGenerator().command());
+        assertThat(environment(actual.databaseImageContext())).containsAllEntriesOf(expected.database().environment());
+        assertThat(environment(actual.loaderImageContext())).containsAllEntriesOf(expected.loadGenerator().environment());
+    }
+
+    @Test
+    void formatsKnownPostgresUnitsBooleansAndAutomaticValuesForStoredScenario() {
+        var scenario = new Scenario("settings-from-db", "Settings from DB", "",
+                PgSettings.specs(PgSettings.SHARED_BUFFERS, PgSettings.WORK_MEM, PgSettings.WAL_BUFFERS,
+                        PgSettings.LOCK_TIMEOUT, PgSettings.CHECKPOINT_TIMEOUT, PgSettings.FSYNC,
+                        PgSettings.RANDOM_PAGE_COST), List.of());
+
+        var actual = collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
+                Map.of("shared_buffers", 256, "work_mem", 4096, "wal_buffers", -1,
+                        "lock_timeout", 1500, "checkpoint_timeout", 120, "fsync", false,
+                        "random_page_cost", new BigDecimal("1E+1")), Map.of());
+
+        assertThat(actual.databaseImageContext().get("command")).isEqualTo(List.of(
+                "docker-entrypoint.sh", "postgres", "-c", "shared_buffers=256MB", "-c", "work_mem=4096kB",
+                "-c", "wal_buffers=-1", "-c", "lock_timeout=1500ms", "-c", "checkpoint_timeout=120s",
+                "-c", "fsync=off", "-c", "random_page_cost=10"));
+    }
+
     @Test
     void convertsNewStoredScenarioWithoutHardcodedScenarioIds() {
         var scenario = new Scenario(
-                "custom-from-catalog", "Custom workload", "Configured in the database", "custom",
+                "custom-from-catalog", "Custom workload", "Configured in the database",
                 List.of(integer("shared_buffers", "Buffers", "", 256, 16, 1024, "MB"),
                         string("extension.mode", "Extension mode", "", "standard")),
                 List.of(integer("targetRps", "RPS", "", 20, 1, 1000, null),
@@ -37,7 +78,7 @@ class PostgresContextCollectorTest {
                 Map.of("targetRps", 75, "distribution", "hotspot"));
 
         assertThat(contexts.databaseImageContext().get("command")).isEqualTo(List.of(
-                "postgres", "-c", "shared_buffers=128MB", "-c", "extension.mode=adaptive"));
+                "docker-entrypoint.sh", "postgres", "-c", "shared_buffers=128MB", "-c", "extension.mode=adaptive"));
         assertThat(environment(contexts.databaseImageContext()))
                 .containsEntry("DBEHAVE_SHARED_BUFFERS", "128MB")
                 .containsEntry("DBEHAVE_EXTENSION_MODE", "adaptive");
@@ -61,28 +102,28 @@ class PostgresContextCollectorTest {
         var defaults = collector.collect(plugin, scenario, settings, params);
 
         assertThat(environment(defaults.loaderImageContext()))
-                .containsEntry("ROWS", "1000000")
-                .doesNotContainKey("DATASET_ROWS");
+                .containsEntry("DATASET_ROWS", "1000000")
+                .doesNotContainKey("ROWS");
 
         params.put("datasetRows", 2_000_000);
         var overridden = collector.collect(plugin, scenario, settings, params);
 
         assertThat(environment(overridden.loaderImageContext()))
-                .containsEntry("ROWS", "2000000")
-                .doesNotContainKey("DATASET_ROWS");
+                .containsEntry("DATASET_ROWS", "2000000")
+                .doesNotContainKey("ROWS");
     }
 
     @Test
     void passesSettingValuesAsLiteralArgumentsWithoutShellEvaluation() {
         String value = "$(touch /tmp/unexpected); 'quoted' \"double\" ${HOME}";
-        var scenario = new Scenario("literal-values", "Literal values", "", "literal",
+        var scenario = new Scenario("literal-values", "Literal values", "",
                 List.of(string("application_name", "Name", "", "default")), List.of());
 
         var contexts = collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
                 Map.of("application_name", value), Map.of());
 
         assertThat(contexts.databaseImageContext().get("command"))
-                .isEqualTo(List.of("postgres", "-c", "application_name=" + value));
+                .isEqualTo(List.of("docker-entrypoint.sh", "postgres", "-c", "application_name=" + value));
         assertThat(environment(contexts.databaseImageContext()))
                 .containsEntry("DBEHAVE_APPLICATION_NAME", value);
     }
@@ -102,7 +143,7 @@ class PostgresContextCollectorTest {
         var databaseContext = new HashMap<String, Object>(Map.of(
                 "environment", databaseEnvironment, "core_max", 2, "mem_max", 536870912L,
                 "custom", "database-value"));
-        var scenario = new Scenario("merged", "Merged", "", "merged", List.of(),
+        var scenario = new Scenario("merged", "Merged", "", List.of(),
                 List.of(integer("targetRps", "RPS", "", 10, 1, 100, null)));
         var plugin = plugin(scenario, loaderContext, databaseContext);
 
@@ -139,7 +180,7 @@ class PostgresContextCollectorTest {
     @Test
     void appendsDatabaseSettingsToConfiguredCommandWithoutMutatingIt() {
         var baseCommand = new ArrayList<>(List.of("postgres", "-c", "log_statement=all"));
-        var scenario = new Scenario("custom-command", "Custom command", "", "custom-command",
+        var scenario = new Scenario("custom-command", "Custom command", "",
                 List.of(integer("max_connections", "Connections", "", 100, 10, 500, null)), List.of());
         var plugin = plugin(scenario, Map.of(), Map.of("command", baseCommand));
 
@@ -152,7 +193,7 @@ class PostgresContextCollectorTest {
 
     @Test
     void rejectsSettingNamesThatCannotBePostgresConfigurationKeys() {
-        var scenario = new Scenario("invalid-setting", "Invalid setting", "", "invalid-setting",
+        var scenario = new Scenario("invalid-setting", "Invalid setting", "",
                 List.of(string("name; echo unsafe", "Invalid", "", "value")), List.of());
 
         assertThatThrownBy(() -> collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
@@ -163,7 +204,7 @@ class PostgresContextCollectorTest {
 
     @Test
     void rejectsDistinctParameterKeysMappingToTheSameEnvironmentVariable() {
-        var scenario = new Scenario("collision", "Collision", "", "collision", List.of(),
+        var scenario = new Scenario("collision", "Collision", "", List.of(),
                 List.of(integer("targetRps", "First RPS", "", 10, 1, 100, null),
                         integer("target_rps", "Second RPS", "", 20, 1, 100, null)));
 
@@ -174,21 +215,23 @@ class PostgresContextCollectorTest {
     }
 
     @Test
-    void rejectsDatasetRowsAliasCollisionWithRowsParameter() {
-        var scenario = new Scenario("alias-collision", "Alias collision", "", "alias-collision", List.of(),
+    void treatsDatasetRowsAndRowsAsSeparateParameters() {
+        var scenario = new Scenario("separate-rows", "Separate rows", "", List.of(),
                 List.of(integer("datasetRows", "Dataset rows", "", 10, 1, 100, null),
                         integer("rows", "Other rows", "", 20, 1, 100, null)));
 
-        assertThatThrownBy(() -> collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
-                Map.of(), Map.of("datasetRows", 10, "rows", 20)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Duplicate parameter environment key: ROWS");
+        var contexts = collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
+                Map.of(), Map.of("datasetRows", 10, "rows", 20));
+
+        assertThat(environment(contexts.loaderImageContext()))
+                .containsEntry("DATASET_ROWS", "10")
+                .containsEntry("ROWS", "20");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"scenario", "SCENARIO", "dbHost", "dbPort", "dbName", "dbUser", "dbPassword", "PGPASSWORD"})
     void rejectsParametersOverwritingReservedLoaderEnvironment(String key) {
-        var scenario = new Scenario("reserved", "Reserved", "", "reserved", List.of(),
+        var scenario = new Scenario("reserved", "Reserved", "", List.of(),
                 List.of(string(key, "Reserved environment variable", "", "value")));
 
         assertThatThrownBy(() -> collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
@@ -199,7 +242,7 @@ class PostgresContextCollectorTest {
 
     @Test
     void rejectsDistinctSettingsMappingToTheSameHelperEnvironmentVariable() {
-        var scenario = new Scenario("setting-collision", "Setting collision", "", "setting-collision",
+        var scenario = new Scenario("setting-collision", "Setting collision", "",
                 List.of(string("extension.mode", "Extension setting", "", "a"),
                         string("extension_mode", "Other setting", "", "b")), List.of());
 
@@ -211,7 +254,7 @@ class PostgresContextCollectorTest {
 
     @Test
     void genericCollectorReplacesPayloadsAndPreservesBaseContextAndLimits() {
-        var scenario = new Scenario("arbitrary", "Arbitrary", "", "arbitrary", List.of(), List.of());
+        var scenario = new Scenario("arbitrary", "Arbitrary", "", List.of(), List.of());
         var plugin = plugin(scenario,
                 Map.of("params", Map.of("stale", true), "scenarioId", "old", "command", List.of("loader"),
                         "core_max", new BigDecimal("1.5")),
@@ -243,6 +286,10 @@ class PostgresContextCollectorTest {
         return new PluginDefinition("stored-plugin", "Stored plugin", "postgres", "custom-loader:v2",
                 "custom-postgres:v3", "https://grafana.example/d/test?var-run_id={runId}",
                 loaderContext, databaseContext, List.of(scenario));
+    }
+
+    private static Stream<Scenario> upstreamScenarios() {
+        return new PostgresPlugin().scenarios().stream();
     }
 
     @SuppressWarnings("unchecked")

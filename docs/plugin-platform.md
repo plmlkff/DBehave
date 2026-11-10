@@ -5,13 +5,13 @@
 В `dbehave.plugins` лежат `id` и `definition jsonb`. Определение содержит:
 
 - `id`, `title`, `collectorId` — идентификатор, название и id бина `ContextCollector`.
-- `loaderImageName`, `databaseImageName` — образы. В имени нагрузчика разрешён
-  `{scenarioTag}`: берётся из `scenario.loadGeneratorTag`.
+- `loaderImageName`, `databaseImageName` — конкретные имена Docker-образов.
+  Один нагрузчик принимает id выбранного сценария в своём контексте.
 - `grafanaUrlTemplate` — HTTP(S)-ссылка с `{runId}`, например
   `https://grafana.example/d/postgres?var-run_id={runId}`.
 - `loaderImageContext`, `databaseImageContext` — базовые JSON-объекты для образов;
   могут содержать env, argv, конфигурацию и ресурсные лимиты.
-- `scenarios` — сценарии с `id`, `title`, `description`, `loadGeneratorTag`,
+- `scenarios` — сценарии с `id`, `title`, `description`,
   списками `settings` и `params`.
 
 Каждое поле схемы: `key`, `title`, `description`, `type`, `defaultValue`, `min`,
@@ -36,15 +36,21 @@
 - в `loaderImageContext.scenarioId` — выбранный сценарий;
 - остальные базовые ключи сохраняет.
 
-`postgres` собирает env и argv из схемы, прочитанной из БД. Настройки БД становятся
-аргументами `postgres -c key=value`; `shared_buffers` измеряется в MB. Параметры
-нагрузчика становятся переменными `UPPER_SNAKE_CASE`, например `durationSec` →
-`DURATION_SEC`; существующий `datasetRows` преобразуется в `ROWS`. Совпадающие
-после конвертации имена и параметры, перезаписывающие `SCENARIO` или подключение
-к БД, отклоняются. Добавляются `SCENARIO`, `DB_HOST=database`, `DB_PORT=5432`,
-`DB_NAME`, `DB_USER`; из `POSTGRES_PASSWORD` выводятся `DB_PASSWORD` и `PGPASSWORD`.
-Для образа БД воркер должен использовать сетевой alias `database`. Значения настроек
-передаются отдельными аргументами без shell-подстановок.
+`postgres` использует описания сценариев нового PostgreSQL-плагина. Все пять
+сценариев запускаются образом `dbehave/postgres-load:0.1.0`; выбор передаётся через
+`SCENARIO`. Настройки БД становятся аргументами `docker-entrypoint.sh postgres -c
+key=value`, их единицы и булевы значения форматируются через общий каталог
+`PgSettings`: MB, kB, ms, s; `true` → `on`, `false` → `off`, `-1` остаётся без
+единицы. Конвертация совпадает с `PostgresPlugin.prepare()` из основного плагина.
+
+Параметры нагрузчика становятся переменными `UPPER_SNAKE_CASE`: `durationSec` →
+`DURATION_SEC`, `datasetRows` → `DATASET_ROWS`. Совпадающие после конвертации имена и
+параметры, перезаписывающие `SCENARIO` или подключение к БД, отклоняются. Добавляются
+`DB_HOST=database`, `DB_PORT=5432`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `PGPASSWORD`.
+Начальные имя БД, пользователь и пароль — `dbehave`. Для образа БД воркер должен
+использовать сетевой alias `database`. Значения настроек передаются отдельными
+аргументами без shell-подстановок. Ключи берутся из сохранённого сценария, поэтому
+коллектор не подменяет отредактированную в БД форму статическим описанием.
 
 Для специальной конвертации реализуйте `ContextCollector` из `plugin-api` и
 зарегистрируйте его как Spring-бин. `id()` возвращает значение `collectorId`,
@@ -103,7 +109,7 @@ BDUI содержит секции `settings`, `params`, `loaderImageContext`,
 
 ```json
 {
-  "loaderImageName": "dbehave/postgres-load:mixed",
+  "loaderImageName": "dbehave/postgres-load:0.1.0",
   "databaseImageName": "postgres:18",
   "loaderImageContext": {
     "environment": {"SCENARIO": "mixed", "CLIENTS": "16"},
@@ -112,8 +118,8 @@ BDUI содержит секции `settings`, `params`, `loaderImageContext`,
     "mem_max": 536870912
   },
   "databaseImageContext": {
-    "environment": {"POSTGRES_DB": "dbehave_experiment"},
-    "command": ["postgres", "-c", "shared_buffers=128MB"],
+    "environment": {"POSTGRES_DB": "dbehave"},
+    "command": ["docker-entrypoint.sh", "postgres", "-c", "shared_buffers=128MB"],
     "core_max": 2,
     "mem_max": 1073741824
   }
@@ -147,3 +153,28 @@ RETURNING task.*;
 после потерянного heartbeat остаётся на стороне воркера. Polling API каждый раз
 читает БД и возвращает статус, времена, heartbeat, workerId и error. Ссылку Grafana
 фронт сохраняет из ответа создания запуска.
+
+## Совместимость с master
+
+Для обычного клиента сохранён простой контракт:
+
+| Метод | Адрес | Данные |
+|---|---|---|
+| GET | `/api/plugins` | Список `{id, title}` |
+| GET | `/api/scenarios?pluginId=postgres` | Список `{id, title, description}` |
+| GET | `/api/ui/experiment?pluginId=postgres&scenarioId=mixed` | BDUI-секции |
+| POST | `/api/experiments` | Создать задачу; то же тело формы, что у `/validate` |
+| GET | `/api/experiments/{id}` | Текущий статус |
+
+Административные методы: `GET /api/plugins/{id}` возвращает полное определение,
+`POST /api/plugins` регистрирует, `PUT /api/plugins/{id}` заменяет его,
+`GET /api/context-collectors` перечисляет доступные бины. Фронтенду не нужно
+знать устройство коллектора. Имена PostgreSQL-параметров берутся из текущей формы:
+`datasetRows`, `readWeight`, `updateWeight`, `insertWeight`, `warmupSec` и другие.
+Старые `rows` и `readPercent` не входят в новую форму.
+
+V3 обновляет нетронутый начальный PostgreSQL-плагин и удаляет устаревшее поле
+`loadGeneratorTag` из сохранённых сценариев. Определения с пользовательскими
+правками сохраняются. Если вручную задан старый шаблон образа `{scenarioTag}`,
+замените `loaderImageName` на реальный общий образ через PUT; запуск до исправления
+вернёт 400 с полем `loaderImageName`. Уже записанные задачи не изменяются.

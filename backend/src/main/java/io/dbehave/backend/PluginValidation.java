@@ -18,8 +18,8 @@ final class PluginValidation {
         require(matches(plugin.id(), "[A-Za-z0-9_.-]{1,128}"), "id", "Укажите id: 1–128 букв, цифр, точек, дефисов или подчёркиваний", errors);
         require(notBlank(plugin.title()), "title", "Укажите название", errors);
         require(notBlank(plugin.collectorId()), "collectorId", "Укажите коллектор", errors);
-        image(plugin.loaderImageName(), "loaderImageName", true, errors);
-        image(plugin.databaseImageName(), "databaseImageName", false, errors);
+        image(plugin.loaderImageName(), "loaderImageName", errors);
+        image(plugin.databaseImageName(), "databaseImageName", errors);
         boolean validUrl = false;
         try {
             if (plugin.grafanaUrlTemplate() != null && plugin.grafanaUrlTemplate().contains("{runId}")) {
@@ -40,10 +40,6 @@ final class PluginValidation {
             String path = "scenarios[" + index + "]";
             require(notBlank(scenario.id()) && ids.add(scenario.id()), path + ".id", "Укажите уникальный id сценария", errors);
             require(notBlank(scenario.title()), path + ".title", "Укажите название сценария", errors);
-            if (plugin.loaderImageName() != null && plugin.loaderImageName().contains("{scenarioTag}")) {
-                require(matches(scenario.loadGeneratorTag(), "[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}"), path + ".loadGeneratorTag",
-                        "Укажите допустимый Docker tag", errors);
-            }
             fields(path + ".settings", scenario.settings(), errors);
             fields(path + ".params", scenario.params(), errors);
         }
@@ -69,9 +65,8 @@ final class PluginValidation {
         }
     }
 
-    private static void image(String value, String name, boolean scenarioTemplate, List<FieldError> errors) {
-        String resolved = value == null ? null : scenarioTemplate ? value.replace("{scenarioTag}", "scenario") : value;
-        require(matches(resolved, "[A-Za-z0-9][A-Za-z0-9._/:@-]*"), name, "Укажите имя Docker-образа", errors);
+    private static void image(String value, String name, List<FieldError> errors) {
+        require(matches(value, "[A-Za-z0-9][A-Za-z0-9._/:@-]*"), name, "Укажите имя Docker-образа", errors);
     }
 
     private static boolean notBlank(String value) {

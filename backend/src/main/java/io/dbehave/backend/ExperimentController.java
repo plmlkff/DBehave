@@ -30,9 +30,16 @@ class ExperimentController {
     }
 
     @GetMapping("/api/plugins")
-    @Operation(summary = "Каталог плагинов и сценариев с BDUI-схемами")
-    List<PluginDefinition> plugins() {
-        return registry.plugins();
+    @Operation(summary = "Получить список плагинов СУБД")
+    List<PluginSummary> plugins() {
+        return registry.plugins().stream().map(plugin -> new PluginSummary(plugin.id(), plugin.title())).toList();
+    }
+
+    @GetMapping("/api/scenarios")
+    @Operation(summary = "Получить сценарии выбранного плагина")
+    List<ScenarioSummary> scenarios(@RequestParam String pluginId) {
+        return registry.plugin(pluginId).scenarios().stream()
+                .map(scenario -> new ScenarioSummary(scenario.id(), scenario.title(), scenario.description())).toList();
     }
 
     @GetMapping("/api/context-collectors")
@@ -103,5 +110,11 @@ class ExperimentController {
     }
 
     public record ValidationError(String code, List<FieldError> fieldErrors) {
+    }
+
+    public record PluginSummary(String id, String title) {
+    }
+
+    public record ScenarioSummary(String id, String title, String description) {
     }
 }

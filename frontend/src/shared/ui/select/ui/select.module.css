@@ -1,0 +1,96 @@
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  color: var(--color-text);
+  line-height: 22px;
+  text-align: left;
+  transition: border-color 120ms, background-color 120ms;
+}
+
+.trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--color-text-subtle);
+  background: var(--color-surface);
+}
+
+.trigger:focus-visible { outline-offset: 2px; }
+.trigger[data-state='open'] { border-color: var(--color-accent); }
+.trigger[aria-invalid='true'] { border-color: var(--color-danger); }
+.trigger:disabled { opacity: .6; cursor: wait; }
+.trigger[data-placeholder] { color: var(--color-text-muted); }
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 120ms, color 120ms;
+}
+
+.trigger[data-state='open'] .chevron {
+  transform: rotate(180deg);
+  color: var(--color-accent);
+}
+
+.content {
+  z-index: 50;
+  width: var(--radix-select-trigger-width);
+  max-width: calc(100vw - 24px);
+  max-height: min(280px, var(--radix-select-content-available-height));
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 12px 32px #0006, 0 2px 8px #0003;
+}
+
+.viewport { padding: 6px; }
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 9px 36px 9px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.item + .item { margin-top: 2px; }
+.item[data-state='checked'] { color: var(--color-accent); background: #ff983012; }
+.item[data-highlighted] { background: var(--color-surface-hover); }
+.item[data-disabled] { opacity: .4; pointer-events: none; }
+
+.indicator {
+  position: absolute;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  color: var(--color-accent);
+}
+
+.scrollButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  color: var(--color-text-muted);
+}

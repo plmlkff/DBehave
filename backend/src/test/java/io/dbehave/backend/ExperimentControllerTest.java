@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import io.dbehave.plugin.postgres.PostgresContextCollector;
 import java.util.Optional;
+import java.util.List;
 import static org.mockito.Mockito.when;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -16,9 +17,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -36,6 +42,43 @@ class ExperimentControllerTest {
     @BeforeEach
     void catalog() {
         when(plugins.findById("postgres")).thenReturn(Optional.of(PostgresContextCollector.defaultDefinition()));
+        when(plugins.findAll()).thenReturn(List.of(PostgresContextCollector.defaultDefinition()));
+    }
+
+    @Test
+    void returnsRegisteredPlugins() throws Exception {
+        mvc.perform(get("/api/plugins"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value("postgres"))
+                .andExpect(jsonPath("$[0].title").value("PostgreSQL 18"))
+                .andExpect(jsonPath("$[0].*", hasSize(2)));
+    }
+
+    @Test
+    void returnsScenariosForPlugin() throws Exception {
+        mvc.perform(get("/api/scenarios").param("pluginId", "postgres"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", hasSize(5)))
+                .andExpect(jsonPath("$[*].id", containsInAnyOrder(
+                        "mixed", "read-heavy", "write-heavy", "long-tx-locks", "isolation")))
+                .andExpect(jsonPath("$[*].title", everyItem(not(blankOrNullString()))))
+                .andExpect(jsonPath("$[*].description", everyItem(not(blankOrNullString()))))
+                .andExpect(jsonPath("$[0].*", hasSize(3)));
+    }
+
+    @Test
+    void requiresPluginIdForScenarios() throws Exception {
+        mvc.perform(get("/api/scenarios"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsNotFoundForUnknownPluginInScenarioList() throws Exception {
+        mvc.perform(get("/api/scenarios").param("pluginId", "unknown"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -47,11 +90,14 @@ class ExperimentControllerTest {
                 .andExpect(jsonPath("$.schemaVersion").value(1))
                 .andExpect(jsonPath("$.scenarios[*].id", containsInAnyOrder(
                         "mixed", "read-heavy", "write-heavy", "long-tx-locks", "isolation")))
-                .andExpect(jsonPath("$.scenarios[0].selected").value(true))
+                .andExpect(jsonPath("$.scenarios[?(@.id == 'mixed')].selected").value(true))
+                .andExpect(jsonPath("$.scenarios[?(@.id == 'read-heavy')].selected").value(false))
                 .andExpect(jsonPath("$.form.sections[0].fields[0].name").value("settings.shared_buffers"))
-                .andExpect(jsonPath("$.form.sections[0].fields[0].defaultValue").value(256))
+                .andExpect(jsonPath("$.form.sections[0].fields[0].defaultValue").value(128))
                 .andExpect(jsonPath("$.form.sections[1].fields[*].name", containsInAnyOrder(
-                        "params.clients", "params.durationSec", "params.rows", "params.readPercent")))
+                        "params.clients", "params.durationSec", "params.warmupSec", "params.datasetRows",
+                        "params.readWeight", "params.updateWeight", "params.insertWeight",
+                        "params.distribution", "params.fillfactor")))
                 .andExpect(jsonPath("$.form.sections[0].id").value("settings"))
                 .andExpect(jsonPath("$.form.sections[1].id").value("params"))
                 .andExpect(jsonPath("$.form.sections[2].fields[0].name").value("loaderImageContext.core_max"))
@@ -80,14 +126,13 @@ class ExperimentControllerTest {
                         .param("pluginId", "postgres")
                         .param("scenarioId", "read-heavy"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.scenarios[0].selected").value(false))
-                .andExpect(jsonPath("$.scenarios[1].selected").value(true))
-                .andExpect(jsonPath("$.form.sections[0].fields[2].type").value("NUMBER"))
-                .andExpect(jsonPath("$.form.sections[0].fields[2].min").value(0.1))
-                .andExpect(jsonPath("$.form.sections[1].fields[3].type").value("BOOLEAN"))
-                .andExpect(jsonPath("$.form.sections[1].fields[3].defaultValue").value(false))
-                .andExpect(jsonPath("$.form.sections[1].fields[4].type").value("ENUM"))
-                .andExpect(jsonPath("$.form.sections[1].fields[4].options", containsInAnyOrder("uniform", "hotspot")));
+                .andExpect(jsonPath("$.scenarios[?(@.id == 'read-heavy')].selected").value(true))
+                .andExpect(jsonPath(field("settings.random_page_cost") + ".type").value("NUMBER"))
+                .andExpect(jsonPath(field("settings.random_page_cost") + ".min").value(0.1))
+                .andExpect(jsonPath(field("params.categoryIndex") + ".type").value("BOOLEAN"))
+                .andExpect(jsonPath(field("params.categoryIndex") + ".defaultValue").value(false))
+                .andExpect(jsonPath(field("params.distribution") + ".type").value("ENUM"))
+                .andExpect(jsonPath(field("params.distribution") + ".options[*]", containsInAnyOrder("uniform", "hotspot")));
     }
 
     @Test
@@ -163,7 +208,7 @@ class ExperimentControllerTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "{\"pluginId\":\"postgres\",\"scenarioId\":\"mixed\",\"setting\":{\"shared_buffers\":128}}",
-            "{\"pluginId\":\"postgres\",\"scenarioId\":\"mixed\",\"params\":{\"rows\":100,\"rows\":200}}"
+            "{\"pluginId\":\"postgres\",\"scenarioId\":\"mixed\",\"params\":{\"datasetRows\":100,\"datasetRows\":200}}"
     })
     void rejectsAmbiguousRequestBodies(String body) throws Exception {
         mvc.perform(post("/api/experiments/validate")
@@ -171,6 +216,10 @@ class ExperimentControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    private static String field(String name) {
+        return "$.form.sections[*].fields[?(@.name == '%s')]".formatted(name);
     }
 
     @Test
