@@ -11,9 +11,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,6 +27,42 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ExperimentControllerTest {
     @Autowired
     private MockMvc mvc;
+
+    @Test
+    void returnsRegisteredPlugins() throws Exception {
+        mvc.perform(get("/api/plugins"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value("postgres"))
+                .andExpect(jsonPath("$[0].title").value("PostgreSQL 18"))
+                .andExpect(jsonPath("$[0].*", hasSize(2)));
+    }
+
+    @Test
+    void returnsScenariosForPlugin() throws Exception {
+        mvc.perform(get("/api/scenarios").param("pluginId", "postgres"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", hasSize(5)))
+                .andExpect(jsonPath("$[*].id", containsInAnyOrder(
+                        "mixed", "read-heavy", "write-heavy", "long-tx-locks", "isolation")))
+                .andExpect(jsonPath("$[*].title", everyItem(not(blankOrNullString()))))
+                .andExpect(jsonPath("$[*].description", everyItem(not(blankOrNullString()))))
+                .andExpect(jsonPath("$[0].*", hasSize(3)));
+    }
+
+    @Test
+    void requiresPluginIdForScenarios() throws Exception {
+        mvc.perform(get("/api/scenarios"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsNotFoundForUnknownPluginInScenarioList() throws Exception {
+        mvc.perform(get("/api/scenarios").param("pluginId", "unknown"))
+                .andExpect(status().isNotFound());
+    }
 
     @Test
     void returnsFormForSelectedScenario() throws Exception {

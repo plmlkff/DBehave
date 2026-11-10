@@ -1,0 +1,9 @@
+.header { padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border); }
+.eyebrow { margin-bottom: var(--space-4); color: var(--color-text-muted); font-size: 11px; line-height: 16px; letter-spacing: .06em; text-transform: uppercase; }
+.row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); }
+.copy { min-width: 0; }
+.title { font-size: 28px; font-weight: 600; line-height: 36px; letter-spacing: -.025em; }
+.description { margin-top: var(--space-2); color: var(--color-text-muted); line-height: 22px; }
+.actions { flex-shrink: 0; }
+@media (max-width: 900px) { .row { flex-wrap: wrap; gap: var(--space-4); } }
+@media (max-width: 680px) { .title { font-size: 25px; line-height: 32px; } .actions { width: 100%; } }

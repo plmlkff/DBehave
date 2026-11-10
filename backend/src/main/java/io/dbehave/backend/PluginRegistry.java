@@ -28,11 +28,19 @@ class PluginRegistry {
         return plugin;
     }
 
+    List<DatabasePlugin> allPlugins(){
+        return List.copyOf(plugins.values());
+    }
+
     Scenario scenario(DatabasePlugin plugin, String scenarioId) {
         return plugin.scenarios().stream()
                 .filter(scenario -> scenario.id().equals(scenarioId))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Неизвестный сценарий: " + scenarioId));
+    }
+
+    List<Scenario> scenarios(DatabasePlugin plugin){
+        return List.copyOf(plugin.scenarios());
     }
 }
