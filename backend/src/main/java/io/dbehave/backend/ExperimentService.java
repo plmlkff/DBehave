@@ -4,6 +4,7 @@ import io.dbehave.plugin.ExperimentPlan;
 import io.dbehave.plugin.FieldSpec;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,7 +72,9 @@ class ExperimentService {
 
     private static String validate(FieldSpec spec, Object value) {
         return switch (spec.type()) {
-            case INTEGER -> validateInteger(spec, value);
+            case INTEGER -> value instanceof Integer || value instanceof Long || value instanceof BigInteger
+                    ? validateBounds(spec, (Number) value) : "Ожидается целое число";
+            case NUMBER -> value instanceof Number number ? validateBounds(spec, number) : "Ожидается число";
             case BOOLEAN -> value instanceof Boolean ? null : "Ожидается логическое значение";
             case STRING -> value instanceof String ? null : "Ожидается строка";
             case ENUM -> value instanceof String option && spec.options().contains(option)
@@ -79,15 +82,17 @@ class ExperimentService {
         };
     }
 
-    private static String validateInteger(FieldSpec spec, Object value) {
-        if (!(value instanceof Integer || value instanceof Long || value instanceof BigInteger)) {
-            return "Ожидается целое число";
+    private static String validateBounds(FieldSpec spec, Number value) {
+        BigDecimal number;
+        try {
+            number = new BigDecimal(value.toString());
+        } catch (NumberFormatException exception) {
+            return "Ожидается конечное число";
         }
-        var integer = new BigInteger(value.toString());
-        if (spec.min() != null && integer.compareTo(BigInteger.valueOf(spec.min())) < 0) {
+        if (spec.min() != null && number.compareTo(spec.min()) < 0) {
             return "Минимальное значение — " + spec.min();
         }
-        if (spec.max() != null && integer.compareTo(BigInteger.valueOf(spec.max())) > 0) {
+        if (spec.max() != null && number.compareTo(spec.max()) > 0) {
             return "Максимальное значение — " + spec.max();
         }
         return null;

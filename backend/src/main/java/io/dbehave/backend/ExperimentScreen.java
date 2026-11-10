@@ -4,12 +4,12 @@ import io.dbehave.plugin.DatabasePlugin;
 import io.dbehave.plugin.FieldSpec;
 import io.dbehave.plugin.Scenario;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public record ExperimentScreen(
         int schemaVersion,
         String screenId,
-        String title,
         List<ScenarioCard> scenarios,
         Form form
 ) {
@@ -21,12 +21,11 @@ public record ExperimentScreen(
         var form = new Form(
                 plugin.id(), plugin.title(), selected.id(), selected.description(),
                 List.of(
-                        Section.from("settings", "Настройки базы данных", selected.settings()),
-                        Section.from("params", "Параметры нагрузки", selected.params())
-                ),
-                new Submit("Запустить эксперимент", "POST", "/api/experiments/validate")
+                        Section.from("settings", selected.settings()),
+                        Section.from("params", selected.params())
+                )
         );
-        return new ExperimentScreen(1, "new-experiment", "Новый эксперимент", cards, form);
+        return new ExperimentScreen(1, "new-experiment", cards, form);
     }
 
     public record ScenarioCard(String id, String title, String description, boolean selected) {
@@ -34,19 +33,19 @@ public record ExperimentScreen(
 
     public record Form(
             String pluginId, String pluginTitle, String scenarioId, String description,
-            List<Section> sections, Submit submit
+            List<Section> sections
     ) {
     }
 
-    public record Section(String id, String title, List<Field> fields) {
-        static Section from(String id, String title, List<FieldSpec> specs) {
-            return new Section(id, title, specs.stream().map(spec -> Field.from(id, spec)).toList());
+    public record Section(String id, List<Field> fields) {
+        static Section from(String id, List<FieldSpec> specs) {
+            return new Section(id, specs.stream().map(spec -> Field.from(id, spec)).toList());
         }
     }
 
     public record Field(
             String name, String title, String description, FieldSpec.Type type, Object defaultValue,
-            Integer min, Integer max, String unit, List<String> options
+            BigDecimal min, BigDecimal max, String unit, List<String> options
     ) {
         static Field from(String section, FieldSpec spec) {
             return new Field(
@@ -54,8 +53,5 @@ public record ExperimentScreen(
                     spec.min(), spec.max(), spec.unit(), spec.options()
             );
         }
-    }
-
-    public record Submit(String label, String method, String url) {
     }
 }

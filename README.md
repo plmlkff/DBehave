@@ -1,9 +1,9 @@
 # DBehave
 
-- `backend` — Spring Boot API для BDUI-форм и проверки конфигурации экспериментов.
-- `plugin-api` — интерфейс СУБД-плагинов и модели конфигурации контейнеров.
-- `plugins/postgres` — пример плагина PostgreSQL 18 со сценарием смешанной нагрузки.
-- `infra` — Compose для бэкенда и служебной PostgreSQL 18.
+- `backend` — Spring Boot API
+- `plugin-api` — интерфейс СУБД-плагинов и модели конфигурации контейнеров
+- `plugins` — реализованные плагины
+- `infra` — общий docker compose
 
 ```sh
 docker compose -f infra/compose.yaml up --build
