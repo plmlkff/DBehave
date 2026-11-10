@@ -1,0 +1,2 @@
+.panel { min-width: 0; padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
+@media (max-width: 680px) { .panel { padding: var(--space-5); } }

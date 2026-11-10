@@ -1,18 +1,13 @@
 package io.dbehave.backend;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -24,6 +19,35 @@ class ExperimentController {
     ExperimentController(PluginRegistry registry, ExperimentService experiments) {
         this.registry = registry;
         this.experiments = experiments;
+    }
+
+    @GetMapping("/api/plugins")
+    @Operation(summary = "Получить список плагинов СУБД")
+    @ApiResponse(responseCode = "200", description = "Список зарегистрированных плагинов")
+    List<PluginSummary> plugins(){
+        return registry.allPlugins().stream()
+                .map(plugin -> new PluginSummary(
+                        plugin.id(),
+                        plugin.title())
+                ).toList();
+    }
+
+    @GetMapping("/api/scenarios")
+    @Operation(summary = "Получить сценарии выбранного плагина")
+    @ApiResponse(responseCode = "200", description = "Список сценариев плагина")
+    @ApiResponse(responseCode = "400", description = "Не указан обязательный параметр pluginId", content = @Content)
+    @ApiResponse(responseCode = "404", description = "Плагин не найден", content = @Content)
+    List<ScenarioSummary> scenarios(
+            @Parameter(description = "Идентификатор плагина СУБД", example = "postgres")
+            @RequestParam String pluginId
+    ){
+        var plugin = registry.plugin(pluginId);
+        return registry.scenarios(plugin).stream()
+                .map(scenario -> new ScenarioSummary(
+                        scenario.id(),
+                        scenario.title(),
+                        scenario.description()
+                )).toList();
     }
 
     @GetMapping("/api/ui/experiment")
@@ -63,4 +87,8 @@ class ExperimentController {
 
     public record ValidationError(String code, List<FieldError> fieldErrors) {
     }
+
+    public record PluginSummary(String id, String title) {}
+
+    public record ScenarioSummary(String id, String title, String description) {}
 }
