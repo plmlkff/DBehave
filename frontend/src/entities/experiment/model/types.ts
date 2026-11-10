@@ -34,3 +34,18 @@ export type ExperimentRequest = {
 }
 
 export type ValidationResult = { status: string; execution: string }
+
+export type ExperimentRun = {
+  id: string
+  state: string
+  createdAt: string
+  updatedAt: string
+  heartbeat: string | null
+  workerId: string | null
+  error: string | null
+  grafanaUrl: string | null
+  pluginId: string | null
+  pluginTitle: string | null
+  scenarioId: string | null
+  scenarioTitle: string | null
+}

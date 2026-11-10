@@ -1,15 +1,14 @@
-package io.dbehave.backend;
+package io.dbehave.backend.plugin;
 
 import io.dbehave.plugin.PluginDefinition;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.List;
-import java.util.Optional;
-
 @Repository
-class PluginRepository {
+public class PluginRepository {
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
 
@@ -18,18 +17,18 @@ class PluginRepository {
         this.json = json;
     }
 
-    List<PluginDefinition> findAll() {
+    public List<PluginDefinition> findAll() {
         return jdbc.query("SELECT definition FROM dbehave.plugins ORDER BY id",
                 (row, index) -> json.readValue(row.getString("definition"), PluginDefinition.class));
     }
 
-    Optional<PluginDefinition> findById(String id) {
+    public Optional<PluginDefinition> findById(String id) {
         return jdbc.query("SELECT definition FROM dbehave.plugins WHERE id = ?",
                         (row, index) -> json.readValue(row.getString("definition"), PluginDefinition.class), id)
                 .stream().findFirst();
     }
 
-    boolean insert(PluginDefinition definition) {
+    public boolean insert(PluginDefinition definition) {
         return jdbc.update("""
                 INSERT INTO dbehave.plugins (id, definition)
                 VALUES (?, CAST(? AS jsonb))
@@ -37,7 +36,7 @@ class PluginRepository {
                 """, definition.id(), json.writeValueAsString(definition)) == 1;
     }
 
-    boolean update(PluginDefinition definition) {
+    public boolean update(PluginDefinition definition) {
         return jdbc.update("""
                 UPDATE dbehave.plugins
                 SET definition = CAST(? AS jsonb)

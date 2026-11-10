@@ -1,7 +1,6 @@
-package io.dbehave.backend;
+package io.dbehave.backend.validation;
 
 import io.dbehave.plugin.FieldSpec;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.HashMap;
@@ -10,19 +9,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class InputValidation {
+public final class InputValidation {
     private static final Set<String> RESOURCE_KEYS = Set.of("core_max", "mem_max");
 
     private InputValidation() {
     }
 
-    static void rejectErrors(List<FieldError> errors) {
+    public static void rejectErrors(List<FieldError> errors) {
         if (!errors.isEmpty()) {
             throw new InvalidExperimentException(errors);
         }
     }
 
-    static Map<String, Object> normalize(
+    public static Map<String, Object> normalize(
             String section, List<FieldSpec> specs, Map<String, Object> input, List<FieldError> errors
     ) {
         Map<String, Object> values = input == null ? Map.of() : input;
@@ -46,7 +45,7 @@ final class InputValidation {
         return normalized;
     }
 
-    static String validate(FieldSpec spec, Object value) {
+    public static String validate(FieldSpec spec, Object value) {
         return switch (spec.type()) {
             case INTEGER -> isInteger(value) ? bounds(spec, (Number) value) : "Ожидается целое число";
             case NUMBER -> value instanceof Number number ? bounds(spec, number) : "Ожидается число";
@@ -57,7 +56,7 @@ final class InputValidation {
         };
     }
 
-    static Map<String, Object> resources(
+    public static Map<String, Object> resources(
             String section, Map<String, Object> defaults, Map<String, Object> overrides, List<FieldError> errors
     ) {
         var result = new HashMap<String, Object>();

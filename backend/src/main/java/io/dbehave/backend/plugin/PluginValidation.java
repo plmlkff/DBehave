@@ -1,19 +1,20 @@
-package io.dbehave.backend;
+package io.dbehave.backend.plugin;
 
+import io.dbehave.backend.validation.FieldError;
+import io.dbehave.backend.validation.InputValidation;
 import io.dbehave.plugin.FieldSpec;
 import io.dbehave.plugin.PluginDefinition;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-final class PluginValidation {
+public final class PluginValidation {
     private PluginValidation() {
     }
 
-    static void validate(PluginDefinition plugin) {
+    public static void validate(PluginDefinition plugin) {
         var errors = new ArrayList<FieldError>();
         require(matches(plugin.id(), "[A-Za-z0-9_.-]{1,128}"), "id", "Укажите id: 1–128 букв, цифр, точек, дефисов или подчёркиваний", errors);
         require(notBlank(plugin.title()), "title", "Укажите название", errors);

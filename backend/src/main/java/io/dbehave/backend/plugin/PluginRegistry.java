@@ -1,42 +1,44 @@
-package io.dbehave.backend;
+package io.dbehave.backend.plugin;
 
+import io.dbehave.backend.validation.FieldError;
+import io.dbehave.backend.validation.InputValidation;
+import io.dbehave.backend.validation.InvalidExperimentException;
 import io.dbehave.plugin.ContextCollector;
 import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
-class PluginRegistry {
+public class PluginRegistry {
     private final PluginRepository repository;
     private final Map<String, ContextCollector> collectors;
 
-    PluginRegistry(PluginRepository repository, List<ContextCollector> collectors) {
+    public PluginRegistry(PluginRepository repository, List<ContextCollector> collectors) {
         this.repository = repository;
         this.collectors = collectors.stream()
                 .collect(Collectors.toUnmodifiableMap(ContextCollector::id, Function.identity()));
     }
 
-    List<PluginDefinition> plugins() {
+    public List<PluginDefinition> plugins() {
         return repository.findAll();
     }
 
-    List<String> collectorIds() {
+    public List<String> collectorIds() {
         return collectors.keySet().stream().sorted().toList();
     }
 
-    PluginDefinition plugin(String pluginId) {
+    public PluginDefinition plugin(String pluginId) {
         return repository.findById(pluginId).orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Неизвестный плагин: " + pluginId));
     }
 
-    Scenario scenario(PluginDefinition plugin, String scenarioId) {
+    public Scenario scenario(PluginDefinition plugin, String scenarioId) {
         return plugin.scenarios().stream()
                 .filter(scenario -> scenario.id().equals(scenarioId))
                 .findFirst()
@@ -44,7 +46,7 @@ class PluginRegistry {
                         HttpStatus.NOT_FOUND, "Неизвестный сценарий: " + scenarioId));
     }
 
-    ContextCollector collector(String id) {
+    public ContextCollector collector(String id) {
         var collector = id == null ? null : collectors.get(id);
         if (collector == null) {
             throw new InvalidExperimentException(List.of(new FieldError(
@@ -53,7 +55,7 @@ class PluginRegistry {
         return collector;
     }
 
-    PluginDefinition create(PluginDefinition definition) {
+    public PluginDefinition create(PluginDefinition definition) {
         validate(definition);
         if (!repository.insert(definition)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Плагин уже существует: " + definition.id());
@@ -61,7 +63,7 @@ class PluginRegistry {
         return definition;
     }
 
-    PluginDefinition update(String id, PluginDefinition definition) {
+    public PluginDefinition update(String id, PluginDefinition definition) {
         if (!id.equals(definition.id())) {
             throw new InvalidExperimentException(List.of(new FieldError("id", "Идентификатор не совпадает с адресом запроса")));
         }

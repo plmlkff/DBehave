@@ -1,4 +1,4 @@
-package io.dbehave.backend;
+package io.dbehave.backend.task;
 
 import java.time.Instant;
 import java.util.UUID;

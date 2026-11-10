@@ -1,3 +1,5 @@
-export { getScenarios, getExperimentScreen, validateExperiment } from './api/experiment-api'
+export { getScenarios, getExperimentScreen, validateExperiment, createExperiment, getExperiment, getExperiments } from './api/experiment-api'
 export { buildExperimentRequest, createInitialValues } from './model/form-values'
-export type { ExperimentScreen, ScenarioSummary, ValidationResult } from './model/types'
+export { useExperimentRun, useExperimentHistory } from './model/use-experiment-runs'
+export { isExperimentFinished, experimentStateLabel } from './model/run-state'
+export type { ExperimentRequest, ExperimentRun, ExperimentScreen, ScenarioSummary, ValidationResult } from './model/types'

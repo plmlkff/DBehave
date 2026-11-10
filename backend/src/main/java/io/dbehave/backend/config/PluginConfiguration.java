@@ -1,4 +1,4 @@
-package io.dbehave.backend;
+package io.dbehave.backend.config;
 
 import io.dbehave.plugin.ContextCollector;
 import io.dbehave.plugin.GenericContextCollector;
@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-class PluginConfiguration {
+public class PluginConfiguration {
     @Bean
     ContextCollector postgresCollector() {
         return new PostgresContextCollector();

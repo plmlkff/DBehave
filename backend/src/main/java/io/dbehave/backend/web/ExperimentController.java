@@ -1,7 +1,17 @@
-package io.dbehave.backend;
+package io.dbehave.backend.web;
 
+import io.dbehave.backend.experiment.ExperimentRequest;
+import io.dbehave.backend.experiment.ExperimentRun;
+import io.dbehave.backend.experiment.ExperimentScreen;
+import io.dbehave.backend.experiment.ExperimentService;
+import io.dbehave.backend.plugin.PluginRegistry;
+import io.dbehave.backend.validation.FieldError;
+import io.dbehave.backend.validation.InvalidExperimentException;
 import io.dbehave.plugin.PluginDefinition;
 import io.swagger.v3.oas.annotations.Operation;
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -14,10 +24,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.net.URI;
-import java.util.List;
-import java.util.UUID;
 
 @RestController
 class ExperimentController {
@@ -83,14 +89,20 @@ class ExperimentController {
 
     @PostMapping("/api/experiments")
     @Operation(summary = "Поставить запуск в очередь воркеров", description = "Возвращает id задачи и ссылку Grafana с подставленным run id.")
-    ResponseEntity<ExperimentService.CreatedExperiment> start(@RequestBody ExperimentRequest request) {
+    ResponseEntity<ExperimentRun> start(@RequestBody ExperimentRequest request) {
         var created = experiments.start(request);
         return ResponseEntity.created(URI.create("/api/experiments/" + created.id())).body(created);
     }
 
+    @GetMapping("/api/experiments")
+    @Operation(summary = "Получить последние 100 запусков")
+    List<ExperimentRun> history() {
+        return experiments.history();
+    }
+
     @GetMapping("/api/experiments/{id}")
     @Operation(summary = "Получить текущий статус запуска из таблицы воркера")
-    ExperimentService.TaskStatus status(@PathVariable UUID id) {
+    ExperimentRun status(@PathVariable UUID id) {
         return experiments.status(id);
     }
 

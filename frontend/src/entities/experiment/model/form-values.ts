@@ -48,7 +48,12 @@ export function buildExperimentRequest(screen: ExperimentScreen, values: FieldVa
         errors[field.name] = 'Введите строку'
       }
 
-      payload[section.id][field.name.slice(section.id.length + 1)] = value
+      Object.defineProperty(payload[section.id], field.name.slice(section.id.length + 1), {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
     }
   }
 

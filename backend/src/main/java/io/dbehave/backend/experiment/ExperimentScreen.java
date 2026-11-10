@@ -1,9 +1,8 @@
-package io.dbehave.backend;
+package io.dbehave.backend.experiment;
 
-import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.FieldSpec;
+import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +13,7 @@ public record ExperimentScreen(
         List<ScenarioCard> scenarios,
         Form form
 ) {
-    static ExperimentScreen from(PluginDefinition plugin, Scenario selected) {
+    public static ExperimentScreen from(PluginDefinition plugin, Scenario selected) {
         var cards = plugin.scenarios().stream()
                 .map(scenario -> new ScenarioCard(
                         scenario.id(), scenario.title(), scenario.description(), scenario.id().equals(selected.id())))

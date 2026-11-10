@@ -142,6 +142,27 @@ test('only declared fields enter the request and dotted setting keys remain inta
   assert.deepEqual(payload.databaseImageContext, { core_max: 2, mem_max: 1073741824 })
 })
 
+test('preserves an explicitly declared __proto__ field without changing object prototypes', () => {
+  const form = screen()
+  form.form.sections[0].fields.push({
+    name: 'settings.__proto__', title: 'Custom setting', description: '', type: 'STRING',
+    defaultValue: 'default', min: null, max: null, unit: null, options: [],
+  })
+  const originalPrototype = Object.getPrototypeOf({})
+  const originalProperties = Object.getOwnPropertyDescriptors(originalPrototype)
+  const { payload, errors } = buildExperimentRequest(form, {
+    ...createInitialValues(form),
+    'settings.__proto__': 'user override',
+  })
+
+  assert.deepEqual(errors, {})
+  assert.equal(Object.hasOwn(payload.settings, '__proto__'), true)
+  assert.equal(payload.settings.__proto__, 'user override')
+  assert.equal(JSON.parse(JSON.stringify(payload)).settings.__proto__, 'user override')
+  assert.equal(Object.getPrototypeOf(payload.settings), originalPrototype)
+  assert.deepEqual(Object.getOwnPropertyDescriptors(originalPrototype), originalProperties)
+})
+
 test('blank or null required scenario inputs still produce validation errors', () => {
   const form = screen()
   for (const blank of ['', '   ', null, undefined]) {

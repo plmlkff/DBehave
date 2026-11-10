@@ -1,17 +1,23 @@
-package io.dbehave.backend;
+package io.dbehave.backend.experiment;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.time.Instant;
+import io.dbehave.backend.plugin.PluginRegistry;
+import io.dbehave.backend.plugin.PluginValidation;
+import io.dbehave.backend.task.ExecutionContext;
+import io.dbehave.backend.task.TaskRepository;
+import io.dbehave.backend.validation.FieldError;
+import io.dbehave.backend.validation.InputValidation;
+import io.dbehave.backend.validation.InvalidExperimentException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
-class ExperimentService {
+public class ExperimentService {
     private final PluginRegistry registry;
     private final TaskRepository tasks;
 
@@ -20,7 +26,7 @@ class ExperimentService {
         this.tasks = tasks;
     }
 
-    PreparedExperiment prepare(ExperimentRequest request) {
+    public PreparedExperiment prepare(ExperimentRequest request) {
         var errors = new ArrayList<FieldError>();
         if (request.pluginId() == null || request.pluginId().isBlank()) {
             errors.add(new FieldError("pluginId", "Укажите идентификатор"));
@@ -54,28 +60,32 @@ class ExperimentService {
         InputValidation.resources("databaseImageContext", databaseContext, null, errors);
         InputValidation.rejectErrors(errors);
         return new PreparedExperiment(new ExecutionContext(plugin.loaderImageName(), plugin.databaseImageName(), loaderContext, databaseContext),
-                plugin.grafanaUrlTemplate());
+                plugin.grafanaUrlTemplate(), plugin.id(), plugin.title(), scenario.id(), scenario.title());
     }
 
-    CreatedExperiment start(ExperimentRequest request) {
+    @Transactional
+    public ExperimentRun start(ExperimentRequest request) {
         var prepared = prepare(request);
         var id = UUID.randomUUID();
         String grafanaUrl = prepared.grafanaUrlTemplate().replace("{runId}", id.toString());
         var task = tasks.insert(id, prepared.context());
-        return new CreatedExperiment(task.id(), task.state(), grafanaUrl, task.createdAt(), task.updatedAt());
+        tasks.insertExperiment(id, prepared.pluginId(), prepared.pluginTitle(),
+                prepared.scenarioId(), prepared.scenarioTitle(), grafanaUrl);
+        return new ExperimentRun(task.id(), task.state(), task.createdAt(), task.updatedAt(),
+                task.heartbeat(), task.workerId(), task.error(), grafanaUrl,
+                prepared.pluginId(), prepared.pluginTitle(), prepared.scenarioId(), prepared.scenarioTitle());
     }
 
-    TaskStatus status(UUID id) {
-        var task = tasks.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id));
-        return new TaskStatus(task.id(), task.state(), task.createdAt(), task.updatedAt(), task.heartbeat(), task.workerId(), task.error());
+    public ExperimentRun status(UUID id) {
+        return tasks.findExperimentById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id));
     }
 
-    record PreparedExperiment(ExecutionContext context, String grafanaUrlTemplate) {
+    public List<ExperimentRun> history() {
+        return tasks.findRecentExperiments();
     }
 
-    record CreatedExperiment(UUID id, String state, String grafanaUrl, Instant createdAt, Instant updatedAt) {
-    }
-
-    record TaskStatus(UUID id, String state, Instant createdAt, Instant updatedAt, Instant heartbeat, String workerId, String error) {
+    public record PreparedExperiment(ExecutionContext context, String grafanaUrlTemplate,
+                              String pluginId, String pluginTitle, String scenarioId, String scenarioTitle) {
     }
 }

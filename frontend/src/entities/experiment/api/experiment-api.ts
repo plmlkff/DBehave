@@ -1,5 +1,5 @@
 import { request } from '@/shared/api'
-import type { ExperimentRequest, ExperimentScreen, ScenarioSummary, ValidationResult } from '../model/types'
+import type { ExperimentRequest, ExperimentRun, ExperimentScreen, ScenarioSummary, ValidationResult } from '../model/types'
 
 export function getScenarios(pluginId: string, signal: AbortSignal) {
   const query = new URLSearchParams({ pluginId })
@@ -36,4 +36,20 @@ export function validateExperiment(payload: ExperimentRequest, signal: AbortSign
     body: JSON.stringify(payload),
     signal,
   })
+}
+
+export function createExperiment(payload: ExperimentRequest, signal: AbortSignal) {
+  return request<ExperimentRun>('/experiments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal,
+  })
+}
+
+export function getExperiment(id: string, signal: AbortSignal) {
+  return request<ExperimentRun>(`/experiments/${encodeURIComponent(id)}`, { signal })
+}
+
+export function getExperiments(signal: AbortSignal) {
+  return request<ExperimentRun[]>('/experiments', { signal })
 }

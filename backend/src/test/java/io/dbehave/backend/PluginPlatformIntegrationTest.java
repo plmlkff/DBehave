@@ -1,11 +1,22 @@
 package io.dbehave.backend;
 
+import io.dbehave.backend.experiment.ExperimentRequest;
+import io.dbehave.backend.experiment.ExperimentService;
+import io.dbehave.backend.task.ExecutionContext;
+import io.dbehave.backend.task.TaskRepository;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,14 +28,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.sql.Timestamp;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -42,6 +49,10 @@ class PluginPlatformIntegrationTest {
     private JdbcTemplate jdbc;
     @Autowired
     private JsonMapper json;
+    @Autowired
+    private ExperimentService experiments;
+    @Autowired
+    private TaskRepository tasks;
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry properties) {
@@ -416,6 +427,123 @@ class PluginPlatformIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("FAILED"))
                 .andExpect(jsonPath("$.error").value("container exited with code 1"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retainsRunDisplayMetadataAndGrafanaLinkAfterCatalogChanges() throws Exception {
+        var plugin = genericPlugin();
+        register(plugin);
+        var created = response(mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("pluginId", plugin.get("id"), "scenarioId", "custom-scenario"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pluginId").value(plugin.get("id")))
+                .andExpect(jsonPath("$.pluginTitle").value(plugin.get("title")))
+                .andExpect(jsonPath("$.scenarioId").value("custom-scenario"))
+                .andExpect(jsonPath("$.scenarioTitle").value("Custom scenario"))
+                .andExpect(jsonPath("$.context").doesNotExist())
+                .andReturn());
+        var id = UUID.fromString((String) created.get("id"));
+
+        plugin.put("title", "Renamed plugin");
+        plugin.put("grafanaUrlTemplate", "https://other.example.test/?run={runId}");
+        var scenario = new LinkedHashMap<>(((List<Map<String, Object>>) plugin.get("scenarios")).getFirst());
+        scenario.put("title", "Renamed scenario");
+        plugin.put("scenarios", List.of(scenario));
+        mvc.perform(put("/api/plugins/{id}", plugin.get("id")).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(plugin)))
+                .andExpect(status().isOk());
+        jdbc.update("DELETE FROM dbehave.plugins WHERE id = ?", plugin.get("id"));
+
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginTitle").value(created.get("pluginTitle")))
+                .andExpect(jsonPath("$.scenarioTitle").value("Custom scenario"))
+                .andExpect(jsonPath("$.grafanaUrl").value(created.get("grafanaUrl")))
+                .andExpect(jsonPath("$.context").doesNotExist());
+        mvc.perform(get("/api/experiments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')].grafanaUrl".formatted(id), hasItem(created.get("grafanaUrl"))))
+                .andExpect(jsonPath("$[*].context").doesNotExist());
+    }
+
+    @Test
+    void readsLegacyTasksWithNullDisplayMetadataAndLiveWorkerStatus() throws Exception {
+        var id = UUID.randomUUID();
+        tasks.insert(id, new ExecutionContext("legacy/load:1", "legacy/database:1",
+                Map.of(), Map.of("environment", Map.of("PASSWORD", "secret"))));
+        jdbc.update("""
+                UPDATE worker.tasks SET state = 'FAILED', worker_id = 'legacy-worker',
+                    heartbeat = CURRENT_TIMESTAMP, error = 'Legacy failure' WHERE id = ?
+                """, id);
+
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("FAILED"))
+                .andExpect(jsonPath("$.workerId").value("legacy-worker"))
+                .andExpect(jsonPath("$.heartbeat").isNotEmpty())
+                .andExpect(jsonPath("$.error").value("Legacy failure"))
+                .andExpect(jsonPath("$.grafanaUrl").value(nullValue()))
+                .andExpect(jsonPath("$.pluginId").value(nullValue()))
+                .andExpect(jsonPath("$.pluginTitle").value(nullValue()))
+                .andExpect(jsonPath("$.scenarioId").value(nullValue()))
+                .andExpect(jsonPath("$.scenarioTitle").value(nullValue()))
+                .andExpect(jsonPath("$.context").doesNotExist());
+        mvc.perform(get("/api/experiments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')].state".formatted(id), hasItem("FAILED")))
+                .andExpect(jsonPath("$[*].context").doesNotExist());
+    }
+
+    @Test
+    void rollsBackWorkerTaskWhenDisplayMetadataCannotBeSaved() throws Exception {
+        var plugin = genericPlugin();
+        register(plugin);
+        long before = taskCount();
+        String constraint = "reject_experiment_" + UUID.randomUUID().toString().replace("-", "");
+        jdbc.execute("ALTER TABLE dbehave.experiments ADD CONSTRAINT " + constraint
+                + " CHECK (plugin_id <> '" + plugin.get("id") + "')");
+        try {
+            assertThatThrownBy(() -> experiments.start(new ExperimentRequest(
+                    (String) plugin.get("id"), "custom-scenario", null, null)))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(taskCount()).isEqualTo(before);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.experiments WHERE plugin_id = ?",
+                    Long.class, plugin.get("id"))).isZero();
+        } finally {
+            jdbc.execute("ALTER TABLE dbehave.experiments DROP CONSTRAINT " + constraint);
+        }
+    }
+
+    @Test
+    @Transactional
+    void listsOnlyTheLatestHundredTasksInDeterministicOrder() throws Exception {
+        var created = Timestamp.from(Instant.parse("2100-01-01T00:00:00Z"));
+        for (int index = 1; index <= 105; index++) {
+            var id = new UUID(0, index);
+            tasks.insert(id, new ExecutionContext("legacy/load:1", "legacy/database:1", Map.of(), Map.of()));
+            jdbc.update("UPDATE worker.tasks SET created_at = ? WHERE id = ?", created, id);
+        }
+        mvc.perform(get("/api/experiments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(100))
+                .andExpect(jsonPath("$[0].id").value(new UUID(0, 105).toString()))
+                .andExpect(jsonPath("$[99].id").value(new UUID(0, 6).toString()));
+    }
+
+    @Test
+    @Transactional
+    void deletesOnlyDisplayMetadataWhenItsWorkerTaskIsDeleted() throws Exception {
+        var plugin = genericPlugin();
+        register(plugin);
+        var created = experiments.start(new ExperimentRequest((String) plugin.get("id"), "custom-scenario", null, null));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.experiments WHERE task_id = ?",
+                Long.class, created.id())).isEqualTo(1L);
+
+        jdbc.update("DELETE FROM worker.tasks WHERE id = ?", created.id());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.experiments WHERE task_id = ?",
+                Long.class, created.id())).isZero();
+        mvc.perform(get("/api/experiments/{id}", created.id())).andExpect(status().isNotFound());
     }
 
     @Test

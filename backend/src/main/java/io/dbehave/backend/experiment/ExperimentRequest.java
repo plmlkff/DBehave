@@ -1,7 +1,6 @@
-package io.dbehave.backend;
+package io.dbehave.backend.experiment;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.util.Map;
 
 public record ExperimentRequest(

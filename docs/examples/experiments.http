@@ -176,3 +176,9 @@ Content-Type: application/json
   "scenarioId": "rps-test",
   "params": {"rps": 250}
 }
+
+### История последних 100 запусков
+GET {{baseUrl}}/api/experiments
+
+### Повторное открытие запуска со статусом и сохранённой ссылкой Grafana
+GET {{baseUrl}}/api/experiments/{{runId}}

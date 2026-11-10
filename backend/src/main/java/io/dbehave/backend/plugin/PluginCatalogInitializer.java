@@ -1,4 +1,4 @@
-package io.dbehave.backend;
+package io.dbehave.backend.plugin;
 
 import io.dbehave.plugin.postgres.PostgresContextCollector;
 import org.springframework.boot.ApplicationArguments;

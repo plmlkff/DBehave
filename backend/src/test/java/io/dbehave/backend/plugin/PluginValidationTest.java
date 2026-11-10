@@ -1,13 +1,14 @@
-package io.dbehave.backend;
+package io.dbehave.backend.plugin;
 
+import io.dbehave.backend.validation.FieldError;
+import io.dbehave.backend.validation.InvalidExperimentException;
 import io.dbehave.plugin.FieldSpec;
 import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
-import org.junit.jupiter.api.Test;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;

@@ -1,18 +1,52 @@
-package io.dbehave.backend;
+package io.dbehave.backend.experiment;
 
+import io.dbehave.backend.plugin.PluginRegistry;
+import io.dbehave.backend.plugin.PluginRepository;
+import io.dbehave.backend.task.ExecutionContext;
+import io.dbehave.backend.task.TaskRepository;
+import io.dbehave.backend.task.WorkerTask;
+import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.postgres.PostgresContextCollector;
-import org.junit.jupiter.api.Test;
-
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ExperimentServiceTest {
+    @Test
+    void savesDisplayMetadataFromTheSameCatalogSnapshotAsTheExecutionContext() {
+        var original = PostgresContextCollector.defaultDefinition();
+        var changed = new PluginDefinition(original.id(), "Changed title", original.collectorId(),
+                original.loaderImageName(), original.databaseImageName(), "https://changed.example.test/{runId}",
+                original.loaderImageContext(), original.databaseImageContext(), original.scenarios());
+        var repository = mock(PluginRepository.class);
+        when(repository.findById("postgres")).thenReturn(Optional.of(original), Optional.of(changed));
+        var tasks = mock(TaskRepository.class);
+        when(tasks.insert(any(UUID.class), any(ExecutionContext.class))).thenAnswer(invocation -> new WorkerTask(
+                invocation.getArgument(0), "QUEUED", Instant.EPOCH, Instant.EPOCH,
+                invocation.getArgument(1), null, null, null));
+        var service = new ExperimentService(new PluginRegistry(repository, List.of(new PostgresContextCollector())), tasks);
+
+        var created = service.start(new ExperimentRequest("postgres", "mixed", null, null));
+
+        assertThat(created.pluginTitle()).isEqualTo(original.title());
+        assertThat(created.scenarioTitle()).isEqualTo(original.scenarios().stream()
+                .filter(scenario -> scenario.id().equals("mixed")).findFirst().orElseThrow().title());
+        assertThat(created.grafanaUrl()).isEqualTo(original.grafanaUrlTemplate().replace("{runId}", created.id().toString()));
+        verify(repository).findById("postgres");
+        verify(tasks).insertExperiment(created.id(), created.pluginId(), created.pluginTitle(),
+                created.scenarioId(), created.scenarioTitle(), created.grafanaUrl());
+    }
+
     @Test
     void mapsDefaultsAndOverridesToSeparateContainers() {
         var registry = registry();
