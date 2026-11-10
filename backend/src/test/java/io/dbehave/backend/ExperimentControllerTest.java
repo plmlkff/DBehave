@@ -1,6 +1,11 @@
 package io.dbehave.backend;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import io.dbehave.plugin.postgres.PostgresContextCollector;
+import java.util.Optional;
+import static org.mockito.Mockito.when;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -23,6 +28,16 @@ class ExperimentControllerTest {
     @Autowired
     private MockMvc mvc;
 
+    @MockitoBean
+    private PluginRepository plugins;
+    @MockitoBean
+    private TaskRepository tasks;
+
+    @BeforeEach
+    void catalog() {
+        when(plugins.findById("postgres")).thenReturn(Optional.of(PostgresContextCollector.defaultDefinition()));
+    }
+
     @Test
     void returnsFormForSelectedScenario() throws Exception {
         mvc.perform(get("/api/ui/experiment")
@@ -39,6 +54,9 @@ class ExperimentControllerTest {
                         "params.clients", "params.durationSec", "params.rows", "params.readPercent")))
                 .andExpect(jsonPath("$.form.sections[0].id").value("settings"))
                 .andExpect(jsonPath("$.form.sections[1].id").value("params"))
+                .andExpect(jsonPath("$.form.sections[2].fields[0].name").value("loaderImageContext.core_max"))
+                .andExpect(jsonPath("$.form.sections[2].fields[0].minExclusive").value(true))
+                .andExpect(jsonPath("$.form.sections[3].fields[1].name").value("databaseImageContext.mem_max"))
                 .andExpect(jsonPath("$.title").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.form.sections[0].title").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.form.submit").doesNotHaveJsonPath());
@@ -53,7 +71,7 @@ class ExperimentControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("VALIDATED"))
-                .andExpect(jsonPath("$.execution").value("NOT_IMPLEMENTED"));
+                .andExpect(jsonPath("$.execution").value("READY"));
     }
 
     @Test

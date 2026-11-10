@@ -2,7 +2,7 @@
 
 ### Форма смешанной нагрузки
 # 200. Карточки сценариев находятся в scenarios, выбранная форма — в form.
-# Фронтенд рисует заголовки секций по id (settings и params) и отправляет форму на POST /api/experiments/validate.
+# Фронтенд рисует секции settings, params и лимиты образов; запускает через POST /api/experiments.
 # form.sections[].fields[].name — путь в теле POST и идентификатор для fieldErrors.
 # Неизвестные ключи верхнего уровня и повторяющиеся JSON-ключи возвращают 400 INVALID_REQUEST.
 # Контролы по type: INTEGER — целое, NUMBER — число с дробной частью, BOOLEAN — переключатель, STRING — текст, ENUM — выбор из options.
@@ -10,7 +10,7 @@ GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=mixed
 Accept: application/json
 
 ### Проверить форму с изменёнными значениями
-# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+# 200 {"status":"VALIDATED","execution":"READY"}
 POST {{baseUrl}}/api/experiments/validate
 Content-Type: application/json
 
@@ -30,7 +30,7 @@ Content-Type: application/json
 }
 
 ### Проверить конфигурацию со значениями по умолчанию
-# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+# 200 {"status":"VALIDATED","execution":"READY"}
 POST {{baseUrl}}/api/experiments/validate
 Content-Type: application/json
 
@@ -60,7 +60,7 @@ GET {{baseUrl}}/api/ui/experiment?pluginId=postgres&scenarioId=read-heavy
 Accept: application/json
 
 ### Проверить параметры интенсивного чтения
-# 200 {"status":"VALIDATED","execution":"NOT_IMPLEMENTED"}
+# 200 {"status":"VALIDATED","execution":"READY"}
 POST {{baseUrl}}/api/experiments/validate
 Content-Type: application/json
 
@@ -101,4 +101,73 @@ Content-Type: application/json
   "pluginId": "postgres",
   "scenarioId": "isolation",
   "params": {"isolationLevel": "REPEATABLE READ", "writeMode": "read-modify-write"}
+}
+
+### Каталог плагинов
+GET {{baseUrl}}/api/plugins
+
+### Доступные бины-коллекторы
+GET {{baseUrl}}/api/context-collectors
+
+### Запуск с ограничением ресурсов
+# 201: id, state QUEUED, grafanaUrl, createdAt, updatedAt. Контекст уже записан в worker.tasks.
+# @name createRun
+POST {{baseUrl}}/api/experiments
+Content-Type: application/json
+
+{
+  "pluginId": "postgres",
+  "scenarioId": "mixed",
+  "settings": {"shared_buffers": 128},
+  "params": {"clients": 16, "durationSec": 30},
+  "loaderImageContext": {"core_max": 0.5, "mem_max": 536870912},
+  "databaseImageContext": {"core_max": 2, "mem_max": 1073741824}
+}
+
+### Опрос статуса (подставить id из ответа запуска)
+@runId = 00000000-0000-0000-0000-000000000000
+GET {{baseUrl}}/api/experiments/{{runId}}
+
+### Регистрация плагина без собственного Java-кода
+# 201; повторная регистрация id -> 409; несуществующий collectorId -> 400.
+POST {{baseUrl}}/api/plugins
+Content-Type: application/json
+
+{
+  "id": "custom-database",
+  "title": "Custom database",
+  "collectorId": "generic",
+  "loaderImageName": "example/load:1",
+  "databaseImageName": "example/database:1",
+  "grafanaUrlTemplate": "https://grafana.example/d/custom?var-run_id={runId}",
+  "loaderImageContext": {"core_max": 1, "mem_max": 536870912},
+  "databaseImageContext": {"configuration": {"feature": true}},
+  "scenarios": [{
+    "id": "rps-test",
+    "title": "RPS test",
+    "description": "Fixed request rate",
+    "loadGeneratorTag": "1",
+    "settings": [],
+    "params": [{
+      "key": "rps",
+      "title": "Requests per second",
+      "description": "Target rate",
+      "type": "INTEGER",
+      "defaultValue": 100,
+      "min": 1,
+      "max": 10000,
+      "unit": "rps",
+      "options": []
+    }]
+  }]
+}
+
+### Запуск нового плагина (нормализованные параметры попадут в loaderImageContext.params)
+POST {{baseUrl}}/api/experiments
+Content-Type: application/json
+
+{
+  "pluginId": "custom-database",
+  "scenarioId": "rps-test",
+  "params": {"rps": 250}
 }
