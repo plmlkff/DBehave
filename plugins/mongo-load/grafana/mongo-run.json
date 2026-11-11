@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 6,
+  "version": 8,
   "editable": true,
   "refresh": "",
   "time": {
@@ -710,7 +710,7 @@
       "description": "Страницы, прочитанные в кеш за секунду"
     },
     {
-      "type": "stat",
+      "type": "table",
       "title": "Данные и индексы на диске",
       "id": 33,
       "datasource": {
@@ -718,7 +718,7 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 8,
         "x": 0,
         "y": 38
@@ -730,28 +730,67 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((last_over_time(dbehave_mongo_collection_bytes{run_id=~\"$run_id\"}[$__range]) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
-          "legendFormat": "{{collection}} · {{kind}} · {{run_short}}",
+          "expr": "max by (run_short, collection, kind) (label_replace(last_over_time(dbehave_mongo_collection_bytes{run_id=~\"$run_id\"}[$__range]), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\"))",
+          "legendFormat": "",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes"
+          "custom": {
+            "minWidth": 66
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Объём"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "colorMode": "none",
-        "textMode": "value_and_name",
-        "text": {
-          "titleSize": 14,
-          "valueSize": 28
-        },
-        "orientation": "vertical"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Запуск",
+            "desc": false
+          }
+        ]
       },
-      "description": "Выделенное место после нагрузки"
+      "description": "Выделенное место после нагрузки",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "run_short": 0,
+              "collection": 1,
+              "kind": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "run_short": "Запуск",
+              "collection": "Набор",
+              "kind": "Тип",
+              "Value": "Объём"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "stat",
@@ -853,7 +892,7 @@
         "h": 6,
         "w": 14,
         "x": 0,
-        "y": 44
+        "y": 46
       },
       "targets": [
         {
@@ -897,7 +936,7 @@
         "h": 6,
         "w": 10,
         "x": 14,
-        "y": 44
+        "y": 46
       },
       "targets": [
         {
@@ -951,7 +990,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 52
       },
       "panels": []
     },
@@ -967,7 +1006,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 53
       },
       "targets": [
         {
@@ -1013,7 +1052,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 53
       },
       "targets": [
         {
@@ -1069,7 +1108,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 59
+        "y": 61
       },
       "targets": [
         {
@@ -1124,7 +1163,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 59
+        "y": 61
       },
       "targets": [
         {
