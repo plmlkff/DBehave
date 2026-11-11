@@ -1,4 +1,4 @@
-package io.dbehave.plugin.postgres.load;
+package io.dbehave.plugin.load;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -8,22 +8,26 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
  * HTTP для воркера: {@code GET /health} — состояние в JSON, {@code GET /metrics} — метрики Prometheus.
  * Сервер работает, пока процесс не остановят, в том числе после DONE и FAILED.
  */
-final class HttpEndpoints {
+public final class HttpEndpoints {
     private final HttpServer server;
+    private final ExecutorService executor;
 
-    private HttpEndpoints(HttpServer server) {
+    private HttpEndpoints(HttpServer server, ExecutorService executor) {
         this.server = server;
+        this.executor = executor;
     }
 
-    static HttpEndpoints start(int port, RunState state, Metrics metrics) throws IOException {
+    public static HttpEndpoints start(int port, RunState state, LoadMetrics metrics) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.setExecutor(Executors.newFixedThreadPool(2));
+        var executor = Executors.newFixedThreadPool(2);
+        server.setExecutor(executor);
         var writer = PrometheusTextFormatWriter.create();
         server.createContext("/health", exchange -> respond(exchange, "application/json", healthJson(state)));
         server.createContext("/metrics", exchange -> {
@@ -33,14 +37,15 @@ final class HttpEndpoints {
         });
         server.start();
         Log.info("HTTP: /health и /metrics на порту " + port);
-        return new HttpEndpoints(server);
+        return new HttpEndpoints(server, executor);
     }
 
-    void stop() {
+    public void stop() {
         server.stop(0);
+        executor.shutdownNow();
     }
 
-    static byte[] healthJson(RunState state) {
+    public static byte[] healthJson(RunState state) {
         String error = state.error() == null ? "null" : "\"" + escape(state.error()) + "\"";
         return """
                 {"status":"%s","phase":"%s","progress":%d,"error":%s}"""

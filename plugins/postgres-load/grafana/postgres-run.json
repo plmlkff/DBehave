@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 7,
+  "version": 9,
   "editable": true,
   "refresh": "",
   "time": {
@@ -47,10 +47,10 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(dbehave_phase, run_id)",
+          "query": "label_values(dbehave_run_info{engine=\"postgres\"}, run_id)",
           "refId": "run_id"
         },
-        "definition": "label_values(dbehave_phase, run_id)",
+        "definition": "label_values(dbehave_run_info{engine=\"postgres\"}, run_id)",
         "refresh": 1,
         "sort": 4,
         "hide": 0,
@@ -349,7 +349,7 @@
             "uid": "${datasource}"
           },
           "expr": "(sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{op}}"
+          "legendFormat": "{{settings}} · {{op}} · {{run_id}}"
         }
       ],
       "fieldConfig": {
@@ -396,7 +396,7 @@
             "uid": "${datasource}"
           },
           "expr": "(histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · p50 {{op}}"
+          "legendFormat": "{{settings}} · p50 {{op}} · {{run_id}}"
         },
         {
           "refId": "B",
@@ -405,7 +405,7 @@
             "uid": "${datasource}"
           },
           "expr": "(histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · p95 {{op}}"
+          "legendFormat": "{{settings}} · p95 {{op}} · {{run_id}}"
         },
         {
           "refId": "C",
@@ -414,7 +414,7 @@
             "uid": "${datasource}"
           },
           "expr": "(histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · p99 {{op}}"
+          "legendFormat": "{{settings}} · p99 {{op}} · {{run_id}}"
         }
       ],
       "fieldConfig": {
@@ -460,7 +460,7 @@
             "uid": "${datasource}"
           },
           "expr": "(sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{op}}: {{kind}}"
+          "legendFormat": "{{settings}} · {{op}}: {{kind}} · {{run_id}}"
         }
       ],
       "fieldConfig": {
@@ -541,6 +541,53 @@
       "description": "Повторы транзакций, неповторяемые чтения, удержание блокировки (blocker_holding = 1)"
     },
     {
+      "type": "timeseries",
+      "title": "Подтверждённые записи в секунду",
+      "id": 29,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(rate(dbehave_records_written_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{run_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Строки в успешно подтверждённых пачках write-heavy"
+    },
+    {
       "type": "row",
       "title": "PostgreSQL",
       "id": 11,
@@ -549,7 +596,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 37
       },
       "panels": []
     },
@@ -565,7 +612,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 30
+        "y": 38
       },
       "targets": [
         {
@@ -619,7 +666,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 30
+        "y": 38
       },
       "targets": [
         {
@@ -674,7 +721,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 30
+        "y": 38
       },
       "targets": [
         {
@@ -720,7 +767,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 38
+        "y": 46
       },
       "targets": [
         {
@@ -768,7 +815,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 38
+        "y": 46
       },
       "targets": [
         {
@@ -844,7 +891,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 38
+        "y": 46
       },
       "targets": [
         {
@@ -891,7 +938,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 54
       },
       "targets": [
         {
@@ -937,7 +984,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 54
       },
       "targets": [
         {
@@ -979,7 +1026,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 62
       },
       "panels": []
     },
@@ -995,7 +1042,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 55
+        "y": 63
       },
       "targets": [
         {
@@ -1046,7 +1093,7 @@
         "h": 6,
         "w": 16,
         "x": 8,
-        "y": 55
+        "y": 63
       },
       "targets": [
         {
@@ -1079,7 +1126,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 69
       },
       "panels": []
     },
@@ -1095,7 +1142,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 62
+        "y": 70
       },
       "targets": [
         {
@@ -1141,7 +1188,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 62
+        "y": 70
       },
       "targets": [
         {
@@ -1197,7 +1244,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 70
+        "y": 78
       },
       "targets": [
         {
@@ -1252,7 +1299,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 70
+        "y": 78
       },
       "targets": [
         {

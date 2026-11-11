@@ -11,6 +11,7 @@ from uuid import UUID
 import asyncpg
 
 from src.config import Settings
+from src.image_refs import normalize_image_ref
 from src.models import TaskStatus, TaskSubmission
 
 logger = logging.getLogger(__name__)
@@ -230,20 +231,25 @@ def _to_submission(
     db_image = context["databaseImageName"]
     db_tmpfs_paths = options.get("dbTmpfsPaths", ["/tmp", "/var/tmp", "/run"])
     db_data_path = options.get("dbDataPath")
-    if "dbTmpfsPaths" not in options and db_data_path is None and db_image.startswith(
-        ("postgres:", "docker.io/library/postgres:")
-    ):
-        tag = db_image.split("@", 1)[0].rsplit(":", 1)[-1]
-        version = tag.split(".", 1)[0]
-        data_path = (
-            "/var/lib/postgresql"
-            if version.isdigit() and int(version) >= 18
-            else "/var/lib/postgresql/data"
-        )
-        if settings.db_data_storage == "volume":
-            db_data_path = data_path
-        else:
-            db_tmpfs_paths.append(data_path)
+    if "dbTmpfsPaths" not in options and db_data_path is None:
+        image = normalize_image_ref(db_image)
+        data_path = None
+        if image.startswith("docker.io/library/postgres:"):
+            tag = image.split("@", 1)[0].rsplit(":", 1)[-1]
+            version = tag.split(".", 1)[0]
+            data_path = (
+                "/var/lib/postgresql"
+                if version.isdigit() and int(version) >= 18
+                else "/var/lib/postgresql/data"
+            )
+        elif image.split("@", 1)[0].split(":", 1)[0] == "docker.io/library/mongo":
+            data_path = "/data/db"
+            db_tmpfs_paths.append("/data/configdb")
+        if data_path is not None:
+            if settings.db_data_storage == "volume":
+                db_data_path = data_path
+            else:
+                db_tmpfs_paths.append(data_path)
 
     return TaskSubmission(
         id=task_id,

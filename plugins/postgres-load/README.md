@@ -48,6 +48,7 @@
 | Метрика | Тип | Метки | Что это |
 |---|---|---|---|
 | `dbehave_operations_total` | counter | `op` | успешные операции |
+| `dbehave_records_written_total` | counter | `op` | число строк в подтверждённых пачках `write-heavy` |
 | `dbehave_operation_duration_seconds` | histogram | `op` | время успешных операций (для p50/p95/p99) |
 | `dbehave_errors_total` | counter | `op`, `kind` | ошибки по видам: `serialization_failure`, `deadlock`, `lock_timeout`, `statement_timeout`, `idle_session_terminated`, `too_many_connections`, `connection_error`, `constraint_violation`, `other` |
 | `dbehave_phase` | gauge | `phase` | 1 у текущей фазы |
@@ -58,7 +59,7 @@
 | `dbehave_scenario_value` | gauge | `name` | значения сценария: `blocker_holding` (1 — блокировка удерживается) |
 | `dbehave_check_value` | gauge | `check`, `kind` | итог проверки после нагрузки: `expected`, `actual`, `anomalies` |
 | `dbehave_check_passed` | gauge | `check` | 1 — аномалий нет, 0 — найдены |
-| `dbehave_run_info` | gauge | `scenario`, `settings`, `params` | описание запуска (значение 1): настройки PostgreSQL, отличающиеся от умолчаний (`work_mem=32MB, …` или «по умолчанию»), и параметры нагрузки |
+| `dbehave_run_info` | gauge | `engine`, `scenario`, `settings`, `params` | описание запуска (значение 1): движок `postgres`, настройки PostgreSQL, отличающиеся от умолчаний (`work_mem=32MB, …` или «по умолчанию»), и параметры нагрузки |
 
 Со стороны PostgreSQL (опрос `pg_stat_*` раз в секунду; счётчики — прирост с начала нагрузки):
 

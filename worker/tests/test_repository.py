@@ -87,3 +87,22 @@ def test_postgres_data_can_stay_in_tmpfs():
 
     assert task.db_data_path is None
     assert "/var/lib/postgresql/data" in task.db_tmpfs_paths
+
+
+def test_mongo_declared_volumes_use_task_storage():
+    context = {
+        "loaderImageName": "dbehave/mongo-load:0.1.0",
+        "databaseImageName": "docker.io/library/mongo:8.0",
+        "loaderImageContext": {"environment": {"SCENARIO": "mixed"}},
+        "databaseImageContext": {"command": ["mongod", "--bind_ip_all"]},
+    }
+
+    volume_task = _to_submission(context, make_settings(), "mongo-volume")
+    assert volume_task.db_data_path == "/data/db"
+    assert "/data/configdb" in volume_task.db_tmpfs_paths
+    assert "/data/db" not in volume_task.db_tmpfs_paths
+
+    tmpfs_task = _to_submission(context, make_settings(db_data_storage="tmpfs"), "mongo-tmpfs")
+    assert tmpfs_task.db_data_path is None
+    assert "/data/db" in tmpfs_task.db_tmpfs_paths
+    assert "/data/configdb" in tmpfs_task.db_tmpfs_paths
