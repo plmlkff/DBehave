@@ -9,12 +9,11 @@ import java.util.List;
 import static io.dbehave.plugin.FieldSpec.bool;
 import static io.dbehave.plugin.FieldSpec.enumeration;
 import static io.dbehave.plugin.FieldSpec.integer;
-import static io.dbehave.plugin.FieldSpec.number;
 
 final class MongoScenarios {
-    static final FieldSpec CACHE_SIZE = number("cacheSizeGB", "Кеш WiredTiger",
+    static final FieldSpec CACHE_SIZE = integer("cacheSizeMB", "Кеш WiredTiger",
             "Лимит кеша WiredTiger. Лимит памяти контейнера должен оставлять запас для запросов и файлового кеша",
-            0.256, 0.256, 16, "ГиБ");
+            256, 256, 16_384, "МиБ");
     static final FieldSpec BLOCK_COMPRESSOR = enumeration("blockCompressor", "Сжатие коллекции",
             "Алгоритм сжатия данных новой коллекции на диске", "snappy", "none", "snappy", "zstd");
     static final FieldSpec JOURNAL_ACKNOWLEDGED = bool("journalAcknowledged", "Подтверждение после записи в журнал",

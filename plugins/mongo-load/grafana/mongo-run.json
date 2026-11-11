@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "",
   "time": {
@@ -566,13 +566,13 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_mongo_cache_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "expr": "(dbehave_mongo_cache_bytes{run_id=~\"$run_id\"} / 1048576) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
           "legendFormat": "{{settings}} · {{kind}} · {{run_id}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes",
+          "unit": "suffix: МиБ",
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,

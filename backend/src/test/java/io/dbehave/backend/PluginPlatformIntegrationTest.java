@@ -796,7 +796,7 @@ class PluginPlatformIntegrationTest {
     @Transactional
     void queuesMongoAndComparesRunsOnTheMongoDashboard() throws Exception {
         var mongo = startRun(Map.of("pluginId", "mongo", "scenarioId", "read-heavy",
-                "settings", Map.of("cacheSizeGB", 0.5, "allowDiskUse", false),
+                "settings", Map.of("cacheSizeMB", 512, "allowDiskUse", false),
                 "params", Map.of("datasetRows", 100_000, "payloadBytes", 2048)));
         String dashboard = "http://localhost:3001/d/dbheave-mongo?var-run_id=";
         assertThat(mongo.get("grafanaUrl")).isEqualTo(dashboard + mongo.get("id") + "&kiosk=1");
@@ -807,6 +807,7 @@ class PluginPlatformIntegrationTest {
                 .isEqualTo(List.of("mongod", "--bind_ip_all", "--wiredTigerCacheSizeGB=0.5"));
         assertThat(imageContext(imageContext(context, "loaderImageContext"), "environment"))
                 .containsEntry("SCENARIO", "read-heavy")
+                .containsEntry("MONGO_CACHE_SIZE_MB", "512")
                 .containsEntry("MONGO_ALLOW_DISK_USE", "false")
                 .containsEntry("PAYLOAD_BYTES", "2048");
 

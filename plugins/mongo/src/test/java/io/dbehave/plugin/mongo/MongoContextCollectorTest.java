@@ -29,13 +29,14 @@ class MongoContextCollectorTest {
         var contexts = COLLECTOR.collect(DEFINITION, scenario, defaults(scenario.settings()), defaults(scenario.params()));
 
         assertThat(contexts.databaseImageContext().get("command"))
-                .asList().contains("mongod", "--bind_ip_all", "--wiredTigerCacheSizeGB=0.256");
+                .asList().contains("mongod", "--bind_ip_all", "--wiredTigerCacheSizeGB=0.25");
         assertThat(contexts.loaderImageContext().get("environment"))
                 .asInstanceOf(MAP)
                 .containsEntry("SCENARIO", scenario.id())
                 .containsEntry("DB_HOST", "database")
                 .containsEntry("DB_PORT", "27017")
-                .containsEntry("CLIENTS", "16");
+                .containsEntry("CLIENTS", "16")
+                .containsEntry("MONGO_CACHE_SIZE_MB", "256");
     }
 
     @Test
@@ -58,11 +59,13 @@ class MongoContextCollectorTest {
     void sendsReportSettingsAndRejectsZeroOperationWeights() {
         var scenario = scenarios().get(1);
         var params = defaults(scenario.params());
-        var settings = Map.<String, Object>of("cacheSizeGB", 0.5, "allowDiskUse", false);
+        var settings = Map.<String, Object>of("cacheSizeMB", 333, "allowDiskUse", false);
         var contexts = COLLECTOR.collect(DEFINITION, scenario, settings, params);
-        assertThat(contexts.databaseImageContext().get("command")).asList().contains("--wiredTigerCacheSizeGB=0.5");
+        assertThat(contexts.databaseImageContext().get("command")).asList()
+                .contains("--wiredTigerCacheSizeGB=0.3251953125");
         assertThat(contexts.loaderImageContext().get("environment"))
                 .asInstanceOf(MAP)
+                .containsEntry("MONGO_CACHE_SIZE_MB", "333")
                 .containsEntry("MONGO_ALLOW_DISK_USE", "false")
                 .containsEntry("REPORT_ROWS", "100000");
 

@@ -65,7 +65,10 @@ public final class MongoContextCollector implements ContextCollector {
         mongoSettings.forEach((key, value) -> {
             String argument = format(value);
             switch (key) {
-                case "cacheSizeGB" -> command.add("--wiredTigerCacheSizeGB=" + argument);
+                case "cacheSizeMB" -> {
+                    var gibibytes = new BigDecimal(argument).divide(BigDecimal.valueOf(1024));
+                    command.add("--wiredTigerCacheSizeGB=" + gibibytes.toPlainString());
+                }
                 case "blockCompressor" -> command.add("--wiredTigerCollectionBlockCompressor=" + argument);
                 case "allowDiskUse", "journalAcknowledged" -> { }
                 default -> throw new IllegalArgumentException("Неизвестная настройка MongoDB: " + key);
