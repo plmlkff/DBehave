@@ -41,7 +41,7 @@ final class Config {
     }
 
     String settingsLabel() {
-        return settings.isEmpty() ? "MongoDB · по умолчанию" : "MongoDB · " + label(settings);
+        return settings.isEmpty() ? "по умолчанию" : label(settings);
     }
 
     String paramsLabel() {

@@ -59,7 +59,7 @@
 | `dbehave_scenario_value` | gauge | `name` | значения сценария: `blocker_holding` (1 — блокировка удерживается) |
 | `dbehave_check_value` | gauge | `check`, `kind` | итог проверки после нагрузки: `expected`, `actual`, `anomalies` |
 | `dbehave_check_passed` | gauge | `check` | 1 — аномалий нет, 0 — найдены |
-| `dbehave_run_info` | gauge | `scenario`, `settings`, `params` | описание запуска (значение 1): настройки PostgreSQL, отличающиеся от умолчаний (`work_mem=32MB, …` или «по умолчанию»), и параметры нагрузки |
+| `dbehave_run_info` | gauge | `engine`, `scenario`, `settings`, `params` | описание запуска (значение 1): движок `postgres`, настройки PostgreSQL, отличающиеся от умолчаний (`work_mem=32MB, …` или «по умолчанию»), и параметры нагрузки |
 
 Со стороны PostgreSQL (опрос `pg_stat_*` раз в секунду; счётчики — прирост с начала нагрузки):
 

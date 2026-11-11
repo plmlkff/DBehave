@@ -53,8 +53,8 @@ public class LoadMetrics {
             .register(registry);
     private final Gauge runInfo = Gauge.builder()
             .name("dbehave_run_info")
-            .help("Описание запуска: сценарий, настройки БД и параметры нагрузки; значение всегда 1")
-            .labelNames("scenario", "settings", "params")
+            .help("Описание запуска: движок, сценарий, настройки БД и параметры нагрузки; значение всегда 1")
+            .labelNames("engine", "scenario", "settings", "params")
             .register(registry);
 
     public PrometheusRegistry registry() {
@@ -100,7 +100,7 @@ public class LoadMetrics {
         loadEnd.set(System.currentTimeMillis() / 1000.0);
     }
 
-    public void runInfo(String scenario, String settings, String params) {
-        runInfo.labelValues(scenario, settings, params).set(1);
+    public void runInfo(String engine, String scenario, String settings, String params) {
+        runInfo.labelValues(engine, scenario, settings, params).set(1);
     }
 }

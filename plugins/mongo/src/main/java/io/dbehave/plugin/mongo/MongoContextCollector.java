@@ -16,7 +16,7 @@ import java.util.Map;
 public final class MongoContextCollector implements ContextCollector {
     public static final String DATABASE_IMAGE = "mongo:8.0";
     public static final String LOADER_IMAGE = "dbehave/mongo-load:0.1.0";
-    public static final String GRAFANA_TEMPLATE = "http://localhost:3001/d/dbehave-postgres?var-run_id={runId}";
+    public static final String GRAFANA_TEMPLATE = "http://localhost:3001/d/dbheave-mongo?var-run_id={runId}";
 
     @Override
     public String id() {

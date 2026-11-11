@@ -794,10 +794,12 @@ class PluginPlatformIntegrationTest {
 
     @Test
     @Transactional
-    void queuesMongoAndComparesItWithPostgres() throws Exception {
+    void queuesMongoAndComparesRunsOnTheMongoDashboard() throws Exception {
         var mongo = startRun(Map.of("pluginId", "mongo", "scenarioId", "read-heavy",
                 "settings", Map.of("cacheSizeGB", 0.5, "allowDiskUse", false),
                 "params", Map.of("datasetRows", 100_000, "payloadBytes", 2048)));
+        String dashboard = "http://localhost:3001/d/dbheave-mongo?var-run_id=";
+        assertThat(mongo.get("grafanaUrl")).isEqualTo(dashboard + mongo.get("id") + "&kiosk=1");
         var context = persistedContext(UUID.fromString((String) mongo.get("id")));
         assertThat(context).containsEntry("databaseImageName", "mongo:8.0")
                 .containsEntry("loaderImageName", "dbehave/mongo-load:0.1.0");
@@ -808,13 +810,15 @@ class PluginPlatformIntegrationTest {
                 .containsEntry("MONGO_ALLOW_DISK_USE", "false")
                 .containsEntry("PAYLOAD_BYTES", "2048");
 
-        var postgres = startRun(Map.of("pluginId", "postgres", "scenarioId", "read-heavy"));
+        var secondMongo = startRun(Map.of("pluginId", "mongo", "scenarioId", "read-heavy"));
         mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(Map.of("runIds", List.of(mongo.get("id"), postgres.get("id"))))))
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(mongo.get("id"), secondMongo.get("id"))))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.grafanaUrl").value(
-                        "http://localhost:3001/d/dbehave-postgres?var-run_id=" + mongo.get("id")
-                                + "&var-run_id=" + postgres.get("id") + "&kiosk=1"));
+                .andExpect(jsonPath("$.grafanaUrl").value(dashboard + mongo.get("id")
+                        + "&var-run_id=" + secondMongo.get("id") + "&kiosk=1"));
+
+        var postgres = startRun(Map.of("pluginId", "postgres", "scenarioId", "read-heavy"));
+        assertComparisonRejected(mongo.get("id"), postgres.get("id"));
     }
 
     @Test

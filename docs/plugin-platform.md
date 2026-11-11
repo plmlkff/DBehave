@@ -59,7 +59,8 @@ key=value`, их единицы и булевы значения формати�
 журнала и временные файлы отчёта — настройками нагрузчика. Как и для PostgreSQL,
 параметры сценария передаются переменными `UPPER_SNAKE_CASE`. Worker монтирует
 `/data/db` согласно `WORKER_DB_DATA_STORAGE`, а `/data/configdb` — в tmpfs.
-Общие сценарии PostgreSQL и MongoDB используют один шаблон Grafana для сравнения.
+У PostgreSQL и MongoDB отдельные дашборды Grafana. Список запусков на каждом
+дашборде фильтруется по метке `engine` метрики `dbehave_run_info`.
 
 Для специальной конвертации реализуйте `ContextCollector` из `plugin-api` и
 зарегистрируйте его как Spring-бин. `id()` возвращает значение `collectorId`,

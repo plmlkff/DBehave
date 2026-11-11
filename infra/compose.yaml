@@ -139,6 +139,7 @@ services:
       - ../plugins/postgres-load/dev/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
       - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/worker.yaml:ro
       - ../plugins/postgres-load/grafana:/var/lib/grafana/dashboards/dbehave:ro
+      - ../plugins/mongo-load/grafana:/var/lib/grafana/dashboards/mongo:ro
       - ./grafana:/var/lib/grafana/dashboards/worker:ro
       - grafana-data:/var/lib/grafana
     ports:

@@ -109,7 +109,7 @@ public final class Main {
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining(", "));
         String changedSettings = settings.isEmpty() ? "по умолчанию" : settings;
-        metrics.runInfo(config.scenario(), changedSettings, params);
+        metrics.runInfo("postgres", config.scenario(), changedSettings, params);
         Log.info("Изменённые настройки PostgreSQL: " + changedSettings);
     }
 

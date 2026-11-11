@@ -57,7 +57,7 @@ public final class Main {
                 var scenario = Scenario.create(config, database, metrics, state);
                 awaitReady(database, state);
 
-                metrics.runInfo(config.scenario(), config.settingsLabel(), config.paramsLabel());
+                metrics.runInfo("mongo", config.scenario(), config.settingsLabel(), config.paramsLabel());
                 state.phase(RunState.Phase.PREPARING);
                 scenario.prepare();
                 new LoadEngine(config, admin, state, metrics).run(scenario);

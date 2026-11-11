@@ -1,14 +1,13 @@
 {
   "uid": "dbehave-postgres",
-  "title": "DBehave · Эксперименты",
+  "title": "DBehave · PostgreSQL",
   "tags": [
     "dbehave",
-    "postgres",
-    "mongodb"
+    "postgres"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 8,
+  "version": 9,
   "editable": true,
   "refresh": "",
   "time": {
@@ -48,10 +47,10 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(dbehave_phase, run_id)",
+          "query": "label_values(dbehave_run_info{engine=\"postgres\"}, run_id)",
           "refId": "run_id"
         },
-        "definition": "label_values(dbehave_phase, run_id)",
+        "definition": "label_values(dbehave_run_info{engine=\"postgres\"}, run_id)",
         "refresh": 1,
         "sort": 4,
         "hide": 0,
@@ -586,7 +585,7 @@
           "mode": "multi"
         }
       },
-      "description": "Строки PostgreSQL или документы MongoDB в успешно подтверждённых пачках write-heavy"
+      "description": "Строки в успешно подтверждённых пачках write-heavy"
     },
     {
       "type": "row",
@@ -1333,282 +1332,6 @@
           "sort": "none"
         }
       }
-    },
-    {
-      "type": "row",
-      "title": "MongoDB",
-      "id": 30,
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 86
-      },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "Кеш WiredTiger",
-      "id": 31,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 87
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "(dbehave_mongo_cache_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{kind}} · {{run_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "description": "Занятая память и настроенный лимит"
-    },
-    {
-      "type": "timeseries",
-      "title": "Чтения в кеш WiredTiger",
-      "id": 32,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 87
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "(rate(dbehave_mongo_cache_pages_read_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{run_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "description": "Страницы, прочитанные в кеш за секунду"
-    },
-    {
-      "type": "stat",
-      "title": "Данные и индексы на диске",
-      "id": 33,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 95
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "last_over_time(dbehave_mongo_collection_bytes{run_id=~\"$run_id\"}[$__range]) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{collection}} · {{kind}} · {{run_id}}",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "textMode": "value_and_name"
-      },
-      "description": "Выделенное место после нагрузки"
-    },
-    {
-      "type": "stat",
-      "title": "Место на документ",
-      "id": 34,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 95
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "last_over_time(dbehave_mongo_storage_bytes_per_document{run_id=~\"$run_id\"}[$__range]) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{collection}} · {{run_id}}",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "textMode": "value_and_name"
-      },
-      "description": "Размер данных на диске в пересчёте на документ"
-    },
-    {
-      "type": "stat",
-      "title": "План поиска по SKU",
-      "id": 35,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 14,
-        "x": 0,
-        "y": 101
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "last_over_time(dbehave_mongo_query_explain{run_id=~\"$run_id\"}[$__range]) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{kind}} · {{run_id}}",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "textMode": "value_and_name"
-      },
-      "description": "Просмотренные документы, ключи индекса и число результатов контрольного запроса"
-    },
-    {
-      "type": "stat",
-      "title": "Отчёт использовал временные файлы",
-      "id": 36,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 10,
-        "x": 14,
-        "y": 101
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "last_over_time(dbehave_mongo_report_used_disk{run_id=~\"$run_id\"}[$__range]) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{run_id}}",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Нет"
-                },
-                "1": {
-                  "text": "Да"
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "textMode": "value_and_name"
-      },
-      "description": "Результат контрольного отчёта после нагрузки"
     }
   ]
 }

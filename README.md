@@ -62,4 +62,4 @@ Compose монтирует Docker socket в worker: это даёт ему по�
 - [Настройка worker и общие метрики ресурсов](worker/README.md)
 - [Разработка фронтенда](frontend/README.md)
 - [Нагрузчик PostgreSQL и отдельный стенд с Grafana](plugins/postgres-load/README.md)
-- [Сценарии MongoDB и сравнение с PostgreSQL](plugins/mongo-load/README.md)
+- [Сценарии и дашборд MongoDB](plugins/mongo-load/README.md)

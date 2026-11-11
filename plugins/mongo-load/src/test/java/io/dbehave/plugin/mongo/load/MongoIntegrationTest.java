@@ -39,7 +39,8 @@ class MongoIntegrationTest {
                 Main.run(env, state, metrics);
                 assertThat(state.status()).as(state.error()).isEqualTo(RunState.Status.DONE);
                 assertThat(scrape(metrics)).contains("dbehave_operations_total{op=\"" + operation + "\"}",
-                        "dbehave_mongo_cache_bytes{kind=\"limit\"}", "dbehave_load_end_timestamp_seconds");
+                        "dbehave_mongo_cache_bytes{kind=\"limit\"}", "dbehave_load_end_timestamp_seconds",
+                        "dbehave_run_info{engine=\"mongo\",");
                 if (scenario.equals("write-heavy")) {
                     assertThat(scrape(metrics)).contains("dbehave_records_written_total{op=\"insert\"}",
                             "dbehave_mongo_storage_bytes_per_document");
