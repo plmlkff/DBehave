@@ -1,23 +1,54 @@
 # DBehave
 
-- `backend` — Spring Boot API
-- `frontend` — React-интерфейс; в Docker готовую сборку раздаёт Nginx
-- `plugin-api` — интерфейс СУБД-плагинов и модели конфигурации контейнеров
-- `plugins` — реализованные плагины:
-  - `plugins/postgres` — описание сценариев PostgreSQL и план контейнеров
-  - [`plugins/postgres-load`](plugins/postgres-load/README.md) — образ-нагрузчик, контракт с воркером, метрики и дашборд Grafana
-- `infra` — общий docker compose
+Платформа для настройки экспериментов с СУБД и передачи запусков в очередь воркеров.
+
+## Запуск
+
+Нужен запущенный Docker с Docker Compose. Скопируйте пример локальных настроек,
+затем запустите весь стенд одной командой из корня репозитория:
 
 ```sh
-docker compose -f infra/compose.yaml up --build -d
+Copy-Item .env.example .env
+docker compose -f infra/compose.yaml up --build
 ```
 
-* [Интерфейс DBehave](http://localhost:3000)
-* [Swagger UI](http://localhost:8080/swagger-ui.html)
-* [Примеры HTTP-запросов](docs/examples/experiments.http)
+Compose соберёт и запустит фронтенд, API, PostgreSQL, worker, Prometheus и Grafana.
+Backend создаст таблицы и зарегистрирует PostgreSQL-плагин; worker дождётся базы
+и готового образа нагрузчика.
 
-Пересобрать и запустить только frontend (backend должен быть запущен):
+Порты указаны в формате «в контейнере → на компьютере».
+
+| Сервис | Назначение | Порты и ссылки |
+| --- | --- | --- |
+| `frontend` | Интерфейс и прокси `/api` на бэкенд | `80 → 3000` · [Открыть фронтенд](http://localhost:3000) |
+| `backend` | API платформы | `8080 → 8080` · [Swagger](http://localhost:8080/swagger-ui.html) · [OpenAPI JSON](http://localhost:8080/v3/api-docs) |
+| `meta-db` | PostgreSQL с каталогом плагинов, историей и очередью задач | `meta-db:5432` внутри сети Compose |
+| `worker` | Запуск контейнеров заданий и отправка метрик | Docker Engine через socket; API доступен только внутри контейнера |
+| `prometheus` | Хранение метрик экспериментов | `9090 → 9090` · [Prometheus](http://localhost:9090) |
+| `grafana` | Provisioned dashboard экспериментов | `3000 → 3001` · [Grafana](http://localhost:3001) |
+| `pushgateway` | Приём метрик worker-ом с label `run_id` | `pushgateway:9091` внутри сети Compose |
+
+Для быстрой проверки API откройте [список плагинов](http://localhost:8080/api/plugins).
+
+В интерфейсе выберите плагин и сценарий, задайте параметры и нажмите «Запустить
+эксперимент». Worker запустит изолированные контейнеры, будет передавать метрики
+через Pushgateway в Prometheus, а страница запуска покажет Grafana dashboard с
+фильтром по UUID запуска. Статус обновляется автоматически, история сохраняется.
+
+Остановка выполняется следующей командой. Данные сохраняются в Docker-томе.
 
 ```sh
-docker compose -f infra/compose.yaml up --build -d --no-deps frontend
+docker compose -f infra/compose.yaml down
 ```
+
+Compose монтирует Docker socket в worker: это даёт ему полномочия управлять Docker
+на локальной машине. Используйте этот стенд только для локальной разработки.
+Данные PostgreSQL, Prometheus и Grafana сохраняются в Docker volumes.
+
+## Документация
+
+- [Архитектурная схема и устройство плагина](docs/architecture.md)
+- [Примеры запросов, включая параметры и лимиты контейнеров](docs/examples/experiments.http)
+- [Плагины и контракт воркера](docs/plugin-platform.md)
+- [Разработка фронтенда](frontend/README.md)
+- [Нагрузчик PostgreSQL и отдельный стенд с Grafana](plugins/postgres-load/README.md)

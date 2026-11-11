@@ -3,7 +3,7 @@ import type { ExperimentRequest, ExperimentScreen } from './types'
 
 export function createInitialValues(screen: ExperimentScreen): FieldValues {
   return Object.fromEntries(screen.form.sections.flatMap(section =>
-    section.fields.map(field => [field.name, field.defaultValue]),
+    section.fields.map(field => [field.name, field.defaultValue ?? '']),
   ))
 }
 
@@ -14,19 +14,27 @@ export function buildExperimentRequest(screen: ExperimentScreen, values: FieldVa
     scenarioId: screen.form.scenarioId,
     settings: {},
     params: {},
+    loaderImageContext: {},
+    databaseImageContext: {},
   }
 
   for (const section of screen.form.sections) {
+    const optional = section.id === 'loaderImageContext' || section.id === 'databaseImageContext'
     for (const field of section.fields) {
       const raw = values[field.name]
+      if (optional && (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === ''))) {
+        continue
+      }
       let value: FieldValue = raw
 
       if (field.type === 'INTEGER' || field.type === 'NUMBER') {
         value = typeof raw === 'number' ? raw : Number(raw)
-        if (typeof raw === 'boolean' || raw === undefined || String(raw).trim() === '' || !Number.isFinite(value)) {
+        if (typeof raw === 'boolean' || raw === null || raw === undefined || String(raw).trim() === '' || !Number.isFinite(value)) {
           errors[field.name] = 'Введите число'
         } else if (field.type === 'INTEGER' && !Number.isSafeInteger(value)) {
           errors[field.name] = 'Введите целое число'
+        } else if (field.min !== null && field.minExclusive && value <= field.min) {
+          errors[field.name] = `Значение должно быть больше ${field.min}`
         } else if (field.min !== null && value < field.min) {
           errors[field.name] = `Минимальное значение — ${field.min}`
         } else if (field.max !== null && value > field.max) {
@@ -40,7 +48,12 @@ export function buildExperimentRequest(screen: ExperimentScreen, values: FieldVa
         errors[field.name] = 'Введите строку'
       }
 
-      payload[section.id][field.name.slice(section.id.length + 1)] = value
+      Object.defineProperty(payload[section.id], field.name.slice(section.id.length + 1), {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
     }
   }
 

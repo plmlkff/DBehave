@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FieldSpec, FieldValue } from '@/shared/lib/bdui'
 import { Select } from '@/shared/ui/select'
+import { stepNumber } from './number-step'
 import styles from './bdui-field.module.css'
 
 type BduiFieldProps = {
@@ -18,15 +19,11 @@ export function BduiField({ field, value, error, disabled = false, onChange }: B
   const errorId = `${id}-error`
   const isNumeric = field.type === 'INTEGER' || field.type === 'NUMBER'
   const numericValue = Number(value)
-  const hasNumber = String(value).trim() !== '' && Number.isFinite(numericValue)
+  const hasNumber = value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(numericValue)
 
   function changeNumber(direction: 1 | -1) {
-    // NUMBER допускает произвольный ввод; шаг кнопок — 0.1, INTEGER — 1.
-    const step = field.type === 'INTEGER' ? 1 : 0.1
-    let next = Number(((hasNumber ? numericValue : 0) + direction * step).toPrecision(15))
-    if (field.min !== null) next = Math.max(field.min, next)
-    if (field.max !== null) next = Math.min(field.max, next)
-    onChange(String(next))
+    const next = stepNumber(field, hasNumber ? numericValue : null, direction)
+    if (next !== null) onChange(String(next))
   }
 
   const accessibility = {
@@ -47,14 +44,14 @@ export function BduiField({ field, value, error, disabled = false, onChange }: B
           <span aria-hidden="true">{value === true ? 'Включено' : 'Выключено'}</span>
         </div>
       ) : field.type === 'ENUM' ? (
-        <Select {...accessibility} value={String(value)} options={field.options} onValueChange={onChange} />
+        <Select {...accessibility} value={String(value ?? '')} options={field.options} onValueChange={onChange} />
       ) : (
         <div className={styles.inputRow}>
           <input
             {...accessibility}
             className={styles.control}
             type={field.type === 'STRING' ? 'text' : 'number'}
-            value={String(value)}
+            value={String(value ?? '')}
             min={field.min ?? undefined}
             max={field.max ?? undefined}
             step={field.type === 'INTEGER' ? 1 : 'any'}

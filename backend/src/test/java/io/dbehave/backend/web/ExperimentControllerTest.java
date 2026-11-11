@@ -1,5 +1,16 @@
-package io.dbehave.backend;
+package io.dbehave.backend.web;
 
+import io.dbehave.backend.config.JsonConfiguration;
+import io.dbehave.backend.config.PluginConfiguration;
+import io.dbehave.backend.experiment.ExperimentService;
+import io.dbehave.backend.plugin.PluginRegistry;
+import io.dbehave.backend.plugin.PluginRepository;
+import io.dbehave.backend.task.TaskRepository;
+import io.dbehave.backend.validation.JsonbValidation;
+import io.dbehave.plugin.postgres.PostgresContextCollector;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -8,14 +19,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -23,10 +36,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ExperimentController.class)
-@Import({PluginRegistry.class, PluginConfiguration.class, ExperimentService.class, JsonConfiguration.class})
+@Import({PluginRegistry.class, PluginConfiguration.class, ExperimentService.class, JsonConfiguration.class, JsonbValidation.class})
 class ExperimentControllerTest {
     @Autowired
     private MockMvc mvc;
+
+    @MockitoBean
+    private PluginRepository plugins;
+    @MockitoBean
+    private TaskRepository tasks;
+
+    @BeforeEach
+    void catalog() {
+        when(plugins.findById("postgres")).thenReturn(Optional.of(PostgresContextCollector.defaultDefinition()));
+        when(plugins.findAll()).thenReturn(List.of(PostgresContextCollector.defaultDefinition()));
+    }
 
     @Test
     void returnsRegisteredPlugins() throws Exception {
@@ -83,6 +107,9 @@ class ExperimentControllerTest {
                         "params.distribution", "params.fillfactor")))
                 .andExpect(jsonPath("$.form.sections[0].id").value("settings"))
                 .andExpect(jsonPath("$.form.sections[1].id").value("params"))
+                .andExpect(jsonPath("$.form.sections[2].fields[0].name").value("loaderImageContext.core_max"))
+                .andExpect(jsonPath("$.form.sections[2].fields[0].minExclusive").value(true))
+                .andExpect(jsonPath("$.form.sections[3].fields[1].name").value("databaseImageContext.mem_max"))
                 .andExpect(jsonPath("$.title").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.form.sections[0].title").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.form.submit").doesNotHaveJsonPath());
@@ -97,7 +124,7 @@ class ExperimentControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("VALIDATED"))
-                .andExpect(jsonPath("$.execution").value("NOT_IMPLEMENTED"));
+                .andExpect(jsonPath("$.execution").value("READY"));
     }
 
     @Test

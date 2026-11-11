@@ -13,7 +13,11 @@ npm run dev
 
 Адрес: `http://localhost:5173`. Backend должен быть доступен на порту 8080.
 
-`npm run build` — сборка в `dist`, `npm run lint` — проверка кода.
+`npm run build` — сборка в `dist`, `npm run lint` — проверка кода, `npm test` — проверки подготовки запроса и валидации формы.
+
+Форма поддерживает BDUI-секции `settings`, `params`, `loaderImageContext` и `databaseImageContext`.
+В секциях контейнеров `core_max` задаёт положительное число ядер CPU, `mem_max` — положительное целое число байт памяти.
+При пустом поле сервер использует лимит из описания плагина. Поле с `minExclusive: true` требует значение строго больше `min`.
 
 ## Переменные окружения
 
@@ -29,7 +33,7 @@ npm run dev
 Из корня репозитория:
 
 ```sh
-docker compose -f infra/compose.yaml up --build -d
+docker compose -f infra/compose.yaml up --build --wait
 ```
 
 Интерфейс: `http://localhost:3000`. Запускаются frontend, backend и служебная БД.
@@ -52,3 +56,10 @@ docker compose -f infra/compose.yaml up --build -d --no-deps frontend
 - `src/shared` — общие компоненты, утилиты и HTTP-клиент.
 
 Алиас `@` указывает на `src`.
+
+## Запуск эксперимента
+
+Форма отправляет параметры на `POST /api/experiments` и открывает страницу
+запуска. Статус обновляется автоматически, ссылка Grafana доступна на странице
+запуска и в истории. История загружается из `GET /api/experiments` и сохраняется
+после перезагрузки браузера.
