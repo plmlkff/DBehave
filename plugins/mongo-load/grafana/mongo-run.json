@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 8,
+  "version": 9,
   "editable": true,
   "refresh": "",
   "time": {
@@ -801,7 +801,7 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 8,
         "x": 8,
         "y": 38
@@ -845,7 +845,7 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 8,
         "x": 16,
         "y": 38
