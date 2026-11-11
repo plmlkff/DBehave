@@ -1,0 +1,32 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "db_image": "postgres:16",
+  "loadgen_image": "ghcr.io/acme/pg-loadgen:1.2.0",
+  "cpu_cores": 4,
+  "memory_mb": 8192,
+  "db_cpu_fraction": 0.6,
+  "db_memory_fraction": 0.7,
+  "db_env": {
+    "POSTGRES_PASSWORD": "benchmark-only-password",
+    "POSTGRES_USER": "bench",
+    "POSTGRES_DB": "bench"
+  },
+  "loadgen_env": {
+    "DB_HOST": "db",
+    "DB_PORT": "5432",
+    "DB_USER": "bench",
+    "DB_PASSWORD": "benchmark-only-password",
+    "DB_NAME": "bench",
+    "DURATION": "60s"
+  },
+  "db_tmpfs_paths": [
+    "/tmp",
+    "/var/tmp",
+    "/run",
+    "/var/lib/postgresql/data"
+  ],
+  "loadgen_tmpfs_paths": ["/tmp", "/var/tmp", "/run"],
+  "timeout_seconds": 3600,
+  "db_startup_grace_seconds": 8,
+  "status": "NEW"
+}

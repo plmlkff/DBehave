@@ -4,7 +4,7 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:3000:80"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:80"
     depends_on:
       backend:
         condition: service_started
@@ -21,26 +21,122 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://meta-db:5432/dbehave
-      SPRING_DATASOURCE_USERNAME: dbehave
-      SPRING_DATASOURCE_PASSWORD: dbehave-local
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-dbehave}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dbehave-local}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
     depends_on:
       meta-db:
         condition: service_healthy
   meta-db:
     image: postgres:18
     environment:
-      POSTGRES_DB: dbehave
-      POSTGRES_USER: dbehave
-      POSTGRES_PASSWORD: dbehave-local
+      POSTGRES_DB: ${POSTGRES_DB:-dbehave}
+      POSTGRES_USER: ${POSTGRES_USER:-dbehave}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dbehave-local}
     volumes:
       - meta-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "dbehave", "-d", "dbehave"]
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "${POSTGRES_USER:-dbehave}", "-d", "${POSTGRES_DB:-dbehave}"]
       interval: 2s
       timeout: 3s
       retries: 15
 
+  loadgen-image:
+    image: dbehave/postgres-load:0.1.0
+    build:
+      context: ..
+      dockerfile: plugins/postgres-load/Dockerfile
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  worker:
+    image: dbehave/worker:local
+    build:
+      context: ../worker
+      dockerfile: Dockerfile
+    container_name: dbehave-worker
+    restart: unless-stopped
+    environment:
+      WORKER_API_TOKEN: ${WORKER_API_TOKEN:-local-development-worker-token-change-me-please-32chars}
+      WORKER_DB_HOST: meta-db
+      WORKER_DB_PORT: "5432"
+      WORKER_DB_NAME: ${POSTGRES_DB:-dbehave}
+      WORKER_DB_USER: ${POSTGRES_USER:-dbehave}
+      WORKER_DB_PASSWORD: ${POSTGRES_PASSWORD:-dbehave-local}
+      WORKER_INSTANCE_ID: ${WORKER_INSTANCE_ID:-worker-local}
+      WORKER_CAPACITY_CORES: ${WORKER_CAPACITY_CORES:-2}
+      WORKER_CAPACITY_MEMORY_MB: ${WORKER_CAPACITY_MEMORY_MB:-3072}
+      WORKER_MAX_CONCURRENT_JOBS: ${WORKER_MAX_CONCURRENT_JOBS:-2}
+      WORKER_SCHEDULER_POLL_SECONDS: ${WORKER_SCHEDULER_POLL_SECONDS:-1}
+      WORKER_METRICS_SCRAPE_SECONDS: ${WORKER_METRICS_SCRAPE_SECONDS:-2}
+      WORKER_PROMETHEUS_PUSHGATEWAY_URL: http://pushgateway:9091
+      WORKER_CONTAINER_NAME: dbehave-worker
+      WORKER_ALLOWED_IMAGE_PREFIXES: ${WORKER_ALLOWED_IMAGE_PREFIXES:-docker.io/library/,docker.io/dbehave/}
+      WORKER_REQUIRE_ROOTLESS_DOCKER: ${WORKER_REQUIRE_ROOTLESS_DOCKER:-false}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      meta-db:
+        condition: service_healthy
+      pushgateway:
+        condition: service_started
+      loadgen-image:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.2
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      pushgateway:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_LOG_LEVEL: warn
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 1s
+    volumes:
+      - ../plugins/postgres-load/dev/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ../plugins/postgres-load/dev/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/worker.yaml:ro
+      - ../plugins/postgres-load/grafana:/var/lib/grafana/dashboards/dbehave:ro
+      - ./grafana:/var/lib/grafana/dashboards/worker:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
 volumes:
   meta-data:
+  prometheus-data:
+  grafana-data:

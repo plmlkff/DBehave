@@ -13,10 +13,22 @@ function timestamp(value: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU')
 }
 
+function grafanaEmbedUrl(value: string) {
+  try {
+    const url = new URL(value)
+    url.searchParams.set('kiosk', 'tv')
+    url.searchParams.set('refresh', '1s')
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 export function ExperimentRunPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { run, error, loading, retry } = useExperimentRun(id)
+  const chartUrl = run?.grafanaUrl ? grafanaEmbedUrl(run.grafanaUrl) : null
 
   return (
     <div className={styles.page}>
@@ -60,11 +72,20 @@ export function ExperimentRunPage() {
           )}
           <Panel aria-labelledby="run-charts-title">
             <h2 id="run-charts-title" className={styles.sectionTitle}>Графики</h2>
-            {run.grafanaUrl ? (
-              <a className={styles.grafanaLink} href={run.grafanaUrl} target="_blank" rel="noopener noreferrer">
-                Открыть Grafana <ExternalLink size={16} aria-hidden="true" />
-              </a>
-            ) : <p className={styles.notice}>Ссылка на графики для этого запуска отсутствует.</p>}
+            {run.grafanaUrl && chartUrl ? (
+              <>
+                <iframe
+                  className={styles.grafanaFrame}
+                  title={`Графики запуска ${run.id}`}
+                  src={chartUrl}
+                  loading="lazy"
+                  allow="fullscreen"
+                />
+                <a className={styles.grafanaLink} href={run.grafanaUrl} target="_blank" rel="noopener noreferrer">
+                  Открыть Grafana отдельно <ExternalLink size={16} aria-hidden="true" />
+                </a>
+              </>
+            ) : <p className={styles.notice}>Ссылка на графики для этого запуска отсутствует или некорректна.</p>}
           </Panel>
         </>
       )}

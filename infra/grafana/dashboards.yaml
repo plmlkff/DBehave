@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: dbehave-worker
+    type: file
+    folder: DBehave
+    options:
+      path: /var/lib/grafana/dashboards/worker
