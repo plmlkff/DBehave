@@ -126,7 +126,9 @@ services:
     volumes:
       - ../plugins/postgres-load/dev/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
       - ../plugins/postgres-load/dev/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/worker.yaml:ro
       - ../plugins/postgres-load/grafana:/var/lib/grafana/dashboards/dbehave:ro
+      - ./grafana:/var/lib/grafana/dashboards/worker:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "127.0.0.1:3001:3000"

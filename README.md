@@ -25,7 +25,7 @@ Backend создаст таблицы и зарегистрирует PostgreSQL
 | `meta-db` | PostgreSQL с каталогом плагинов, историей и очередью задач | `meta-db:5432` внутри сети Compose |
 | `worker` | Запуск контейнеров заданий и отправка метрик | Docker Engine через socket; API доступен только внутри контейнера |
 | `prometheus` | Хранение метрик экспериментов | `9090 → 9090` · [Prometheus](http://localhost:9090) |
-| `grafana` | Provisioned dashboard экспериментов | `3000 → 3001` · [Grafana](http://localhost:3001) |
+| `grafana` | Дашборды запусков и общих ресурсов worker | `3000 → 3001` · [Grafana](http://localhost:3001) |
 | `pushgateway` | Приём метрик worker-ом с label `run_id` | `pushgateway:9091` внутри сети Compose |
 
 Для быстрой проверки API откройте [список плагинов](http://localhost:8080/api/plugins).
@@ -51,5 +51,6 @@ Compose монтирует Docker socket в worker: это даёт ему по�
 - [Архитектурная схема и устройство плагина](docs/architecture.md)
 - [Примеры запросов, включая параметры и лимиты контейнеров](docs/examples/experiments.http)
 - [Плагины и контракт воркера](docs/plugin-platform.md)
+- [Настройка worker и общие метрики ресурсов](worker/README.md)
 - [Разработка фронтенда](frontend/README.md)
 - [Нагрузчик PostgreSQL и отдельный стенд с Grafana](plugins/postgres-load/README.md)

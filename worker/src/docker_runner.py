@@ -16,6 +16,12 @@ from docker.types import LogConfig
 from src.config import Settings
 from src.models import TaskSubmission
 from src.image_refs import normalize_image_ref
+from src.metrics import (
+    delete_metrics_group,
+    push_metrics,
+    render_task_container_metrics,
+    task_metrics_group,
+)
 
 logger = logging.getLogger(__name__)
 MANAGED_LABEL = "db-load-worker.managed"
@@ -151,6 +157,20 @@ class DockerSandboxRunner:
             except Exception as exc:
                 cleanup_errors.append(f"cleanup failed: {type(exc).__name__}: {exc}")
                 logger.exception("Sandbox cleanup failed for task %s", task.id)
+            if self.settings.prometheus_pushgateway_url:
+                try:
+                    await asyncio.to_thread(
+                        delete_metrics_group,
+                        self.settings.prometheus_pushgateway_url,
+                        "dbehave_worker_task",
+                        task_metrics_group(self.settings.instance_id, task.id),
+                    )
+                except Exception:
+                    logger.warning(
+                        "Could not remove task resource metrics for %s",
+                        task.id,
+                        exc_info=True,
+                    )
 
         if isinstance(error, asyncio.CancelledError):
             if cleanup_errors:
@@ -382,6 +402,7 @@ class DockerSandboxRunner:
     ) -> int:
         deadline = time.monotonic() + timeout_seconds
         next_metrics_scrape = 0.0
+        next_task_metrics_scrape = 0.0
         while time.monotonic() < deadline:
             await asyncio.to_thread(loadgen_container.reload)
             load_state = loadgen_container.attrs.get("State", {})
@@ -411,15 +432,32 @@ class DockerSandboxRunner:
                         await self._forward_metrics(
                             loadgen_container, health_port, task_id, required=True
                         )
+                        await self._forward_task_metrics(
+                            db_container, loadgen_container, task_id
+                        )
                     return 0
                 if health and health.get("status") == "FAILED":
                     if task_id and self.settings.prometheus_pushgateway_url:
                         await self._forward_metrics(
                             loadgen_container, health_port, task_id, required=True
                         )
+                        await self._forward_task_metrics(
+                            db_container, loadgen_container, task_id
+                        )
                     raise SandboxError(
                         f"Load-generator failed: {health.get('error') or 'unknown error'}"
                     )
+
+            now = time.monotonic()
+            if (
+                task_id
+                and self.settings.prometheus_pushgateway_url
+                and now >= next_task_metrics_scrape
+            ):
+                await self._forward_task_metrics(
+                    db_container, loadgen_container, task_id
+                )
+                next_task_metrics_scrape = now + self.settings.metrics_scrape_seconds
 
             await asyncio.to_thread(db_container.reload)
             db_state = db_container.attrs.get("State", {})
@@ -430,6 +468,35 @@ class DockerSandboxRunner:
                 )
             await asyncio.sleep(0.5)
         raise SandboxError(f"Load-generator timed out after {timeout_seconds} seconds")
+
+    async def _forward_task_metrics(
+        self,
+        db_container: Any,
+        loadgen_container: Any,
+        task_id: str,
+    ) -> None:
+        try:
+            samples = await asyncio.gather(
+                asyncio.to_thread(db_container.stats, stream=False),
+                asyncio.to_thread(loadgen_container.stats, stream=False),
+            )
+            metrics = render_task_container_metrics(
+                {"database": samples[0], "loadgen": samples[1]}
+            )
+            await asyncio.to_thread(
+                push_metrics,
+                self.settings.prometheus_pushgateway_url or "",
+                "dbehave_worker_task",
+                task_metrics_group(self.settings.instance_id, task_id),
+                metrics,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not forward container resource metrics for task %s: %s",
+                task_id,
+                exc,
+                exc_info=True,
+            )
 
     async def _forward_metrics(
         self,

@@ -6,6 +6,7 @@ import docker
 
 from src.config import Settings
 from src.docker_runner import DockerSandboxRunner, create_docker_client, remove_stale_resources
+from src.metrics import WorkerMetricsPublisher, log_metrics_error
 from src.models import TaskStatus
 from src.repository import TaskRecord, TaskRepository
 
@@ -26,6 +27,8 @@ class Worker:
         self.client: docker.DockerClient | None = None
         self.runner: DockerSandboxRunner | None = None
         self.scheduler_task: asyncio.Task[None] | None = None
+        self.metrics_task: asyncio.Task[None] | None = None
+        self.metrics_publisher: WorkerMetricsPublisher | None = None
         self._stop = asyncio.Event()
         self._active: dict[str, asyncio.Task[None]] = {}
         self._usage = ResourceUsage()
@@ -37,6 +40,11 @@ class Worker:
             await remove_stale_resources(self.client)
             await self.repository.fail_interrupted()
             self.runner = DockerSandboxRunner(self.client, self.settings)
+            if self.settings.prometheus_pushgateway_url:
+                self.metrics_publisher = WorkerMetricsPublisher(self.settings, self.client)
+                self.metrics_task = asyncio.create_task(
+                    self._metrics_loop(), name="worker-metrics"
+                )
             self.scheduler_task = asyncio.create_task(
                 self._scheduler_loop(), name="worker-scheduler"
             )
@@ -51,6 +59,8 @@ class Worker:
         self._stop.set()
         if self.scheduler_task:
             await self.scheduler_task
+        if self.metrics_task:
+            await self.metrics_task
         active = list(self._active.values())
         for task in active:
             task.cancel()
@@ -59,6 +69,25 @@ class Worker:
         if self.client:
             await asyncio.to_thread(self.client.close)
             self.client = None
+
+    async def _metrics_loop(self) -> None:
+        assert self.metrics_publisher is not None
+        while not self._stop.is_set():
+            try:
+                await self.metrics_publisher.publish(
+                    active_jobs=self._usage.jobs,
+                    reserved_cpu_cores=self._usage.cores,
+                    reserved_memory_bytes=self._usage.memory_mb * 1024 * 1024,
+                )
+            except Exception as exc:
+                log_metrics_error("Could not publish worker metrics", exc)
+            try:
+                await asyncio.wait_for(
+                    self._stop.wait(),
+                    timeout=self.settings.metrics_scrape_seconds,
+                )
+            except TimeoutError:
+                pass
 
     async def _scheduler_loop(self) -> None:
         while not self._stop.is_set():

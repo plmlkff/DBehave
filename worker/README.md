@@ -150,8 +150,23 @@ curl http://127.0.0.1:8080/tasks/00000000-0000-4000-8000-000000000001 \
 | `WORKER_PIDS_LIMIT` | Максимум процессов/потоков на контейнер | `256` |
 | `WORKER_REQUIRE_ROOTLESS_DOCKER` | Требовать rootless Docker daemon | `false` |
 | `WORKER_SCHEDULER_POLL_SECONDS` | Частота опроса очереди | `1.0` |
+| `WORKER_METRICS_SCRAPE_SECONDS` | Интервал сбора и отправки метрик worker и контейнеров задания | `2.0` |
+| `WORKER_PROMETHEUS_PUSHGATEWAY_URL` | URL Pushgateway; если не задан, экспорт метрик отключён | — |
 
 `WORKER_CAPACITY_*` нужно выставить ниже реальных ресурсов машины, оставив запас ОС, Docker daemon и самого worker. Например, не отдавайте контейнерам всю физическую RAM хоста.
+
+### Метрики и Grafana
+
+При заданном `WORKER_PROMETHEUS_PUSHGATEWAY_URL` worker отправляет общие, не зависящие от плагина метрики в Pushgateway:
+
+- CPU time и RSS-память процесса worker, число активных задач и зарезервированные CPU/RAM;
+- размер и свободное место файловой системы, видимой из контейнера worker; это не метрика свободного места диска Docker-хоста;
+- объём Docker images, writable layers контейнеров и volumes по данным Docker Engine API;
+- CPU time, working-set памяти и лимит RAM, число PID и block I/O для контейнеров БД и нагрузчика.
+
+Метрики worker публикуются в группе `job=dbehave_worker,instance=<WORKER_INSTANCE_ID>`. Метрики контейнеров публикуются на время задания в `job=dbehave_worker_task` с метками `instance`, `run_id` и `role`; после завершения задания группа удаляется из Pushgateway, а уже собранные временные ряды остаются в Prometheus до истечения его retention. Block I/O не включает запись в memory-backed tmpfs. Docker storage метрики показывают используемый объём, но не свободную ёмкость диска демона.
+
+В основном Compose-стенде Grafana автоматически загружает отдельный дашборд **DBehave · Worker resources** с CPU, памятью, диском и резервами worker. Статистика контейнеров задания показана в дашборде конкретного запуска, отфильтрована по `run_id` и использует тот же Prometheus и Pushgateway; сбор не зависит от метрик PostgreSQL-плагина. Интервал опроса задаётся `WORKER_METRICS_SCRAPE_SECONDS`; временной ряд CPU требует как минимум двух последовательных выборок.
 
 ## 6. Поведение при сбоях
 
