@@ -40,7 +40,7 @@
       },
       {
         "name": "run_id",
-        "label": "Запуск",
+        "label": "Запуски",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -53,11 +53,76 @@
         "definition": "label_values(dbehave_phase, run_id)",
         "refresh": 1,
         "sort": 4,
-        "hide": 0
+        "hide": 0,
+        "multi": true,
+        "includeAll": false
       }
     ]
   },
   "panels": [
+    {
+      "type": "table",
+      "title": "Запуски",
+      "id": 28,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "description": "Выбранные запуски: сценарий, настройки PostgreSQL, отличающиеся от умолчаний, и параметры нагрузки. Этими подписями отмечены линии на графиках.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (run_id, settings, scenario, params) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[$__range]))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "indexByName": {
+              "settings": 0,
+              "scenario": 1,
+              "params": 2,
+              "run_id": 3
+            },
+            "renameByName": {
+              "settings": "Изменённые настройки PostgreSQL",
+              "scenario": "Сценарий",
+              "params": "Параметры нагрузки",
+              "run_id": "Запуск"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
     {
       "type": "row",
       "title": "Ход запуска",
@@ -67,7 +132,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 5
       },
       "panels": []
     },
@@ -83,7 +148,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 1
+        "y": 6
       },
       "targets": [
         {
@@ -92,8 +157,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_phase{run_id=\"$run_id\"}",
-          "legendFormat": "{{phase}}"
+          "expr": "(dbehave_phase{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{phase}}"
         }
       ],
       "fieldConfig": {
@@ -133,7 +198,7 @@
         "h": 6,
         "w": 4,
         "x": 12,
-        "y": 1
+        "y": 6
       },
       "targets": [
         {
@@ -142,8 +207,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_progress_percent{run_id=\"$run_id\"}",
-          "legendFormat": ""
+          "expr": "(dbehave_progress_percent{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}}"
         }
       ],
       "fieldConfig": {
@@ -163,7 +228,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -181,7 +247,7 @@
         "h": 6,
         "w": 4,
         "x": 16,
-        "y": 1
+        "y": 6
       },
       "targets": [
         {
@@ -190,12 +256,14 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_clients_active{run_id=\"$run_id\"}",
-          "legendFormat": ""
+          "expr": "(dbehave_clients_active{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}}"
         }
       ],
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "0"
+        },
         "overrides": []
       },
       "options": {}
@@ -212,7 +280,7 @@
         "h": 6,
         "w": 4,
         "x": 20,
-        "y": 1
+        "y": 6
       },
       "targets": [
         {
@@ -221,8 +289,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(dbehave_errors_total{run_id=\"$run_id\"}) or vector(0)",
-          "legendFormat": ""
+          "expr": "(sum by (run_id) (dbehave_errors_total{run_id=~\"$run_id\"})) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}}"
         }
       ],
       "fieldConfig": {
@@ -239,7 +307,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -254,7 +323,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 12
       },
       "panels": []
     },
@@ -270,7 +339,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 13
       },
       "targets": [
         {
@@ -279,8 +348,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (op) (rate(dbehave_operations_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{op}}"
+          "expr": "(sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{op}}"
         }
       ],
       "fieldConfig": {
@@ -317,7 +386,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 13
       },
       "targets": [
         {
@@ -326,8 +395,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=\"$run_id\"}[$__rate_interval])))",
-          "legendFormat": "p50 {{op}}"
+          "expr": "(histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · p50 {{op}}"
         },
         {
           "refId": "B",
@@ -335,8 +404,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=\"$run_id\"}[$__rate_interval])))",
-          "legendFormat": "p95 {{op}}"
+          "expr": "(histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · p95 {{op}}"
         },
         {
           "refId": "C",
@@ -344,8 +413,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=\"$run_id\"}[$__rate_interval])))",
-          "legendFormat": "p99 {{op}}"
+          "expr": "(histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · p99 {{op}}"
         }
       ],
       "fieldConfig": {
@@ -381,7 +450,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 21
       },
       "targets": [
         {
@@ -390,8 +459,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (op, kind) (rate(dbehave_errors_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{op}}: {{kind}}"
+          "expr": "(sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{op}}: {{kind}}"
         }
       ],
       "fieldConfig": {
@@ -428,7 +497,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 21
       },
       "targets": [
         {
@@ -437,8 +506,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (name) (rate(dbehave_scenario_events_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{name}}"
+          "expr": "(sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{name}}"
         },
         {
           "refId": "B",
@@ -446,8 +515,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_scenario_value{run_id=\"$run_id\"}",
-          "legendFormat": "{{name}}"
+          "expr": "(dbehave_scenario_value{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{name}}"
         }
       ],
       "fieldConfig": {
@@ -480,7 +549,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 29
       },
       "panels": []
     },
@@ -496,7 +565,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 25
+        "y": 30
       },
       "targets": [
         {
@@ -505,8 +574,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_db_connections{run_id=\"$run_id\"}",
-          "legendFormat": "{{state}}"
+          "expr": "(dbehave_db_connections{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{state}}"
         },
         {
           "refId": "B",
@@ -514,8 +583,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_db_lock_waiters{run_id=\"$run_id\"}",
-          "legendFormat": "ждут блокировку"
+          "expr": "(dbehave_db_lock_waiters{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · ждут блокировку"
         }
       ],
       "fieldConfig": {
@@ -550,7 +619,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 25
+        "y": 30
       },
       "targets": [
         {
@@ -559,8 +628,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_db_lock_wait_max_seconds{run_id=\"$run_id\"}",
-          "legendFormat": "самое долгое ожидание блокировки"
+          "expr": "(dbehave_db_lock_wait_max_seconds{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · самое долгое ожидание блокировки"
         },
         {
           "refId": "B",
@@ -568,8 +637,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_db_oldest_transaction_seconds{run_id=\"$run_id\"}",
-          "legendFormat": "возраст старейшей транзакции"
+          "expr": "(dbehave_db_oldest_transaction_seconds{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · возраст старейшей транзакции"
         }
       ],
       "fieldConfig": {
@@ -605,7 +674,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 25
+        "y": 30
       },
       "targets": [
         {
@@ -614,8 +683,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (result) (rate(dbehave_db_transactions_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{result}}"
+          "expr": "(sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{result}}"
         }
       ],
       "fieldConfig": {
@@ -651,7 +720,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 33
+        "y": 38
       },
       "targets": [
         {
@@ -660,8 +729,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(dbehave_db_blocks_total{run_id=\"$run_id\",source=\"hit\"}[$__rate_interval])) / sum(rate(dbehave_db_blocks_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "cache hit"
+          "expr": "(sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"$run_id\",source=\"hit\"}[$__rate_interval])) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · cache hit"
         }
       ],
       "fieldConfig": {
@@ -699,7 +768,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 33
+        "y": 38
       },
       "targets": [
         {
@@ -708,8 +777,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(dbehave_db_wal_bytes_total{run_id=\"$run_id\"}[$__rate_interval])",
-          "legendFormat": "WAL, байт/с"
+          "expr": "(rate(dbehave_db_wal_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · WAL, байт/с"
         },
         {
           "refId": "B",
@@ -717,8 +786,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(dbehave_db_checkpoints_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "чекпоинты"
+          "expr": "(sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · чекпоинты"
         }
       ],
       "fieldConfig": {
@@ -775,7 +844,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 33
+        "y": 38
       },
       "targets": [
         {
@@ -784,8 +853,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(dbehave_db_temp_bytes_total{run_id=\"$run_id\"}[$__rate_interval])",
-          "legendFormat": "байт/с на диск"
+          "expr": "(rate(dbehave_db_temp_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · байт/с на диск"
         }
       ],
       "fieldConfig": {
@@ -822,7 +891,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 41
+        "y": 46
       },
       "targets": [
         {
@@ -831,8 +900,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_db_tuples{run_id=\"$run_id\"}",
-          "legendFormat": "{{state}}"
+          "expr": "(dbehave_db_tuples{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{state}}"
         }
       ],
       "fieldConfig": {
@@ -868,7 +937,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 41
+        "y": 46
       },
       "targets": [
         {
@@ -877,8 +946,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(dbehave_db_deadlocks_total{run_id=\"$run_id\"}[$__rate_interval])",
-          "legendFormat": "deadlocks"
+          "expr": "(increase(dbehave_db_deadlocks_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · deadlocks"
         }
       ],
       "fieldConfig": {
@@ -910,7 +979,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 54
       },
       "panels": []
     },
@@ -926,7 +995,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -935,8 +1004,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_check_passed{run_id=\"$run_id\"}",
-          "legendFormat": "{{check}}"
+          "expr": "(dbehave_check_passed{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{check}}"
         }
       ],
       "fieldConfig": {
@@ -955,7 +1024,8 @@
                 }
               }
             }
-          ]
+          ],
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -976,7 +1046,7 @@
         "h": 6,
         "w": 16,
         "x": 8,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -985,12 +1055,14 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_check_value{run_id=\"$run_id\"}",
-          "legendFormat": "{{check}}: {{kind}}"
+          "expr": "(dbehave_check_value{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{check}}: {{kind}}"
         }
       ],
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "0"
+        },
         "overrides": []
       },
       "options": {
@@ -1007,7 +1079,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 61
       },
       "panels": []
     },
@@ -1023,7 +1095,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 57
+        "y": 62
       },
       "targets": [
         {
@@ -1032,8 +1104,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{role}}"
+          "expr": "(sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{role}}"
         }
       ],
       "fieldConfig": {
@@ -1069,7 +1141,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 57
+        "y": 62
       },
       "targets": [
         {
@@ -1078,8 +1150,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_worker_container_memory_bytes{run_id=\"$run_id\"}",
-          "legendFormat": "{{role}} used"
+          "expr": "(dbehave_worker_container_memory_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{role}} used"
         },
         {
           "refId": "B",
@@ -1087,8 +1159,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_worker_container_memory_limit_bytes{run_id=\"$run_id\"}",
-          "legendFormat": "{{role}} limit"
+          "expr": "(dbehave_worker_container_memory_limit_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{role}} limit"
         }
       ],
       "fieldConfig": {
@@ -1125,7 +1197,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 65
+        "y": 70
       },
       "targets": [
         {
@@ -1134,8 +1206,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{role}} read"
+          "expr": "(sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{role}} read"
         },
         {
           "refId": "B",
@@ -1143,8 +1215,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=\"$run_id\"}[$__rate_interval]))",
-          "legendFormat": "{{role}} write"
+          "expr": "(sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{role}} write"
         }
       ],
       "fieldConfig": {
@@ -1180,7 +1252,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 65
+        "y": 70
       },
       "targets": [
         {
@@ -1189,8 +1261,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dbehave_worker_container_pids{run_id=\"$run_id\"}",
-          "legendFormat": "{{role}}"
+          "expr": "(dbehave_worker_container_pids{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
+          "legendFormat": "{{settings}} · {{role}}"
         }
       ],
       "fieldConfig": {

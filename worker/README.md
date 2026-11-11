@@ -14,8 +14,9 @@
 - контейнеры не публикуют порты на хост и не имеют маршрута наружу через свою internal-сеть;
 - bind mounts, host volumes, Docker socket, devices, host PID/network namespace и privileged mode не используются;
 - корневая ФС контейнеров read-only;
-- worker проверяет mounts после создания контейнера и отказывается запускать образ, если обнаруживает bind/volume mount (в том числе не перекрытый `VOLUME` из Dockerfile); все writable data paths должны быть явно перекрыты tmpfs;
-- для записи доступны только явно указанные tmpfs-пути; tmpfs находится в памяти контейнера и подпадает под memory limit;
+- worker проверяет mounts после создания контейнера и отказывается запускать образ, если обнаруживает bind mount или чужой volume (в том числе не перекрытый `VOLUME` из Dockerfile); writable пути — это явно указанные tmpfs и собственный том задания для данных БД;
+- для записи доступны только явно указанные tmpfs-пути (в памяти контейнера, под memory limit) и каталог данных БД `db_data_path`;
+- каталог данных БД по умолчанию лежит на диске, в Docker volume, который worker создаёт для одного задания и удаляет при очистке (`WORKER_DB_DATA_STORAGE=volume`). На диске `fsync` стоит реальных денег, поэтому настройки WAL и надёжности влияют на результат так же, как в продакшене. Режим `tmpfs` держит данные в памяти: быстрее, но эти настройки почти перестают влиять, а данные должны поместиться в `WORKER_TMPFS_SIZE_MB`;
 - у нагрузчика сброшены все Linux capabilities; у БД оставлены только `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE`, `FOWNER`, необходимые распространённым entrypoint-скриптам для подготовки каталога данных и сброса привилегий; включён `no-new-privileges`, задан private cgroup namespace и лимит PID;
 - Docker JSON logs ограничены `log_max_size × log_max_files`; состояние и текст ошибки исполнения записываются в `worker.tasks`;
 - scheduler дополнительно резервирует суммарные CPU/RAM worker'а, чтобы несколько одновременных заданий не превысили заданную ёмкость узла;
@@ -122,14 +123,14 @@ curl http://127.0.0.1:8080/tasks/00000000-0000-4000-8000-000000000001 \
 
 Образы должны быть подготовлены под ограничения:
 
-- данные БД должны располагаться в tmpfs, который указан в `db_tmpfs_paths`;
+- каталог данных БД указывается в `db_data_path` (том на диске) или в `db_tmpfs_paths` (память);
 - нагрузчик должен запускаться как конечный процесс и завершаться с кодом `0` при успешном тесте;
 - нагрузчик подключается к БД по `DB_HOST=db`; порт и остальные параметры передаются env-переменными;
 - если у образа БД есть Docker `HEALTHCHECK`, worker ждёт состояния `healthy`; без healthcheck worker ждёт `db_startup_grace_seconds` и проверяет, что контейнер всё ещё запущен;
 - корневая ФС read-only, поэтому все пути, куда приложению нужно писать, должны быть в списке tmpfs. Список путей не является bind mount и не открывает доступ к файловой системе worker;
 - закрепляйте образы по digest в production, а не используйте изменяемые теги.
 
-Пример для PostgreSQL: `/var/lib/postgresql/data` добавлен в `db_tmpfs_paths`. Для других СУБД укажите каталог данных, соответствующий конкретному образу (например, Redis — `/data`, MySQL — `/var/lib/mysql`, MongoDB — `/data/db`).
+Для PostgreSQL worker сам выбирает каталог данных (`/var/lib/postgresql` для версии 18+, иначе `/var/lib/postgresql/data`) и, в зависимости от `WORKER_DB_DATA_STORAGE`, монтирует туда том задания или tmpfs. Для других СУБД укажите каталог данных, соответствующий конкретному образу (например, Redis — `/data`, MySQL — `/var/lib/mysql`, MongoDB — `/data/db`).
 
 ## 5. Конфигурация worker
 
@@ -147,6 +148,7 @@ curl http://127.0.0.1:8080/tasks/00000000-0000-4000-8000-000000000001 \
 | `WORKER_MAX_CONCURRENT_JOBS` | Максимум одновременно выполняемых заданий | `4` |
 | `WORKER_ALLOWED_IMAGE_PREFIXES` | Разрешённые префиксы image references | `docker.io/library/` |
 | `WORKER_TMPFS_SIZE_MB` | Максимальный размер каждого tmpfs mount на контейнер | `256` |
+| `WORKER_DB_DATA_STORAGE` | Где хранить данные БД: `volume` — одноразовый Docker volume на диске, `tmpfs` — в памяти | `volume` |
 | `WORKER_PIDS_LIMIT` | Максимум процессов/потоков на контейнер | `256` |
 | `WORKER_REQUIRE_ROOTLESS_DOCKER` | Требовать rootless Docker daemon | `false` |
 | `WORKER_SCHEDULER_POLL_SECONDS` | Частота опроса очереди | `1.0` |

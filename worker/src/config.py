@@ -1,7 +1,7 @@
 from functools import lru_cache
 import math
 import socket
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     allowed_image_prefixes: str = "docker.io/library/"
 
     tmpfs_size_mb: int = 256
+    # Where the database keeps its data directory: "volume" — a per-task Docker volume on disk
+    # (removed with the task), "tmpfs" — memory. On tmpfs fsync is free, so WAL/durability
+    # settings stop affecting results and the data must fit into tmpfs_size_mb.
+    db_data_storage: Literal["volume", "tmpfs"] = "volume"
     pids_limit: int = 256
     log_max_size: str = "10m"
     log_max_files: int = 3

@@ -1,9 +1,11 @@
 package io.dbehave.plugin.postgres.load;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Параметры запуска из переменных окружения. Их формирует плагин в бэкенде
@@ -52,6 +54,24 @@ public final class Config {
     public Duration warmup() {
         return Duration.ofSeconds(integer("WARMUP_SEC", 5, 0, 600));
     }
+
+    /** Параметры нагрузки: все переменные, кроме подключения к БД и служебных. */
+    public Map<String, String> loadParams() {
+        var params = new TreeMap<String, String>();
+        env.forEach((name, value) -> {
+            boolean service = SERVICE_VARIABLES.contains(name)
+                    || SERVICE_PREFIXES.stream().anyMatch(name::startsWith);
+            if (!service && name.matches("[A-Z][A-Z0-9_]*")) {
+                params.put(name.toLowerCase(Locale.ROOT), value);
+            }
+        });
+        return params;
+    }
+
+    // Переменные окружения образа и подключения к БД (включая пароли) в описание запуска не попадают
+    private static final Set<String> SERVICE_VARIABLES = Set.of(
+            "SCENARIO", "HTTP_PORT", "PATH", "HOME", "HOSTNAME", "PWD", "OLDPWD", "SHLVL", "TERM", "TZ", "USER");
+    private static final List<String> SERVICE_PREFIXES = List.of("DB_", "PG", "LC_", "LANG", "JAVA", "JDK", "_");
 
     public String required(String name) {
         String value = env.get(name);

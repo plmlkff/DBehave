@@ -3,7 +3,9 @@ package io.dbehave.plugin.postgres.load;
 import io.dbehave.plugin.postgres.load.scenario.Scenario;
 import io.dbehave.plugin.postgres.load.scenario.Scenarios;
 
+import java.sql.SQLException;
 import java.time.Duration;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -60,6 +62,7 @@ public final class Main {
             Scenario scenario = Scenarios.create(ctx); // сразу проверяет параметры
             sampler = new DbSampler(db, metrics.registry());
             db.awaitReady(DB_READY_TIMEOUT, state);
+            publishRunInfo(config, db, metrics);
 
             state.phase(RunState.Phase.PREPARING);
             scenario.prepare();
@@ -86,6 +89,23 @@ public final class Main {
             }
             db.abortAll();
         }
+    }
+
+    /**
+     * Метрика dbehave_run_info: какие настройки этого запуска отличаются от умолчаний PostgreSQL.
+     * По ней дашборд подписывает запуски на общих графиках, например «work_mem=32MB».
+     */
+    static void publishRunInfo(Config config, Db db, Metrics metrics) throws SQLException {
+        // boot_val — встроенное значение; shared_buffers initdb переопределяет на 128MB (16384 страницы по 8 кБ)
+        String settings = db.queryText("""
+                select coalesce(string_agg(name || '=' || current_setting(name), ', ' order by name), '')
+                from pg_settings
+                where source = 'command line'
+                  and setting is distinct from case name when 'shared_buffers' then '16384' else boot_val end""");
+        String params = config.loadParams().entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining(", "));
+        metrics.runInfo(config.scenario(), settings.isEmpty() ? "по умолчанию" : settings, params);
     }
 
     private static String describe(Throwable e) {

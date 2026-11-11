@@ -74,6 +74,7 @@ services:
       WORKER_CONTAINER_NAME: dbehave-worker
       WORKER_ALLOWED_IMAGE_PREFIXES: ${WORKER_ALLOWED_IMAGE_PREFIXES:-docker.io/library/,docker.io/dbehave/}
       WORKER_REQUIRE_ROOTLESS_DOCKER: ${WORKER_REQUIRE_ROOTLESS_DOCKER:-false}
+      WORKER_DB_DATA_STORAGE: ${WORKER_DB_DATA_STORAGE:-volume}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
