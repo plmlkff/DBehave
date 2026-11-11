@@ -49,7 +49,8 @@ def test_backend_execution_context_maps_images_resources_and_commands():
     assert task.db_cpu_fraction == 0.8
     assert task.memory_mb == 1536
     assert task.db_memory_fraction == 2 / 3
-    assert "/var/lib/postgresql" in task.db_tmpfs_paths
+    assert task.db_data_path == "/var/lib/postgresql"
+    assert "/var/lib/postgresql" not in task.db_tmpfs_paths
     assert task.loadgen_env["DB_HOST"] == "database"
 
 
@@ -69,3 +70,20 @@ def test_missing_context_limits_use_worker_capacity_share():
 
     assert task.cpu_cores == 2
     assert task.memory_mb == 2048
+
+def test_postgres_data_can_stay_in_tmpfs():
+    context = {
+        "loaderImageName": "dbehave/postgres-load:0.1.0",
+        "databaseImageName": "postgres:16",
+        "loaderImageContext": {"environment": {}, "command": []},
+        "databaseImageContext": {"environment": {}, "command": []},
+    }
+
+    task = _to_submission(
+        context,
+        make_settings(db_data_storage="tmpfs"),
+        "00000000-0000-4000-8000-000000000003",
+    )
+
+    assert task.db_data_path is None
+    assert "/var/lib/postgresql/data" in task.db_tmpfs_paths

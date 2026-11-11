@@ -94,6 +94,16 @@ public final class Db {
         }
     }
 
+    public String queryText(String sql) throws SQLException {
+        Connection connection = connect();
+        try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
+            rs.next();
+            return rs.getString(1);
+        } finally {
+            close(connection);
+        }
+    }
+
     /**
      * Заполняет таблицу пачками {@code insert ... select ... from generate_series(?, ?) g}, чтобы показывать прогресс.
      *

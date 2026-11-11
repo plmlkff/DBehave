@@ -76,6 +76,13 @@ class LoadGeneratorTest {
         assertThat(config.duration().toSeconds()).isEqualTo(30);
     }
 
+    @Test
+    void loadParamsExcludeConnectionAndImageVariables() {
+        var config = new Config(Map.of("SCENARIO", "write-heavy", "CLIENTS", "8", "BATCH_SIZE", "10",
+                "DB_PASSWORD", "secret", "PGPASSWORD", "secret", "LC_ALL", "C", "LANGUAGE", "en", "PWD", "/app"));
+        assertThat(config.loadParams()).containsExactly(Map.entry("batch_size", "10"), Map.entry("clients", "8"));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CLIENTS=abc", "CLIENTS=0", "BATCH_SIZE=5000", "DISTRIBUTION=zipf"})
     void rejectsInvalidParameters(String assignment) {

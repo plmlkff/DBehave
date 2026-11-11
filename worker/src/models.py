@@ -71,6 +71,9 @@ class TaskSubmission(BaseModel):
     # database's data directory here, e.g. /var/lib/postgresql/data or /data.
     db_tmpfs_paths: list[str] = Field(default_factory=lambda: ["/tmp", "/var/tmp", "/run"])
     loadgen_tmpfs_paths: list[str] = Field(default_factory=lambda: ["/tmp", "/var/tmp", "/run"])
+    # Database data directory backed by a per-task Docker volume (disk). The worker creates
+    # the volume for this task only and removes it during cleanup. None — no volume.
+    db_data_path: str | None = None
 
     # Fractions of the aggregate job budget assigned to the database container.
     db_command: list[str] | None = None
@@ -102,6 +105,14 @@ class TaskSubmission(BaseModel):
     def validate_tmpfs(cls, value: list[str]) -> list[str]:
         return _validate_tmpfs_paths(value)
 
+    @field_validator("db_data_path")
+    @classmethod
+    def validate_data_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        _validate_tmpfs_paths([value])
+        return value
+
     @field_validator("db_image", "loadgen_image")
     @classmethod
     def validate_image_reference_syntax(cls, value: str) -> str:
@@ -125,6 +136,8 @@ class TaskSubmission(BaseModel):
         loadgen_mem = self.memory_mb - db_mem
         if min(db_mem, loadgen_mem) < 128:
             raise ValueError("At least 128 MiB must be assigned to each container")
+        if self.db_data_path is not None and self.db_data_path in self.db_tmpfs_paths:
+            raise ValueError("db_data_path must not also be a tmpfs path")
         return self
 
 

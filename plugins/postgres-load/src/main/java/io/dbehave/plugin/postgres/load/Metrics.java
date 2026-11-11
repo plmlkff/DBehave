@@ -75,6 +75,12 @@ public final class Metrics {
             .labelNames("check")
             .register(registry);
 
+    private final Gauge runInfo = Gauge.builder()
+            .name("dbehave_run_info")
+            .help("Описание запуска: сценарий, изменённые настройки PostgreSQL и параметры нагрузки; значение всегда 1")
+            .labelNames("scenario", "settings", "params")
+            .register(registry);
+
     private final Set<String> loggedErrors = ConcurrentHashMap.newKeySet();
 
     public PrometheusRegistry registry() {
@@ -140,6 +146,11 @@ public final class Metrics {
 
     public void loadFinished() {
         loadEnd.set(System.currentTimeMillis() / 1000.0);
+    }
+
+    public void runInfo(String scenario, String settings, String params) {
+        runInfo.labelValues(scenario, settings, params).set(1);
+        Log.info("Изменённые настройки PostgreSQL: " + settings);
     }
 
     public void event(String name) {

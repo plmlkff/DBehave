@@ -229,7 +229,10 @@ def _to_submission(
     loadgen_environment = _environment(loadgen_context.get("environment", {}), "loader")
     db_image = context["databaseImageName"]
     db_tmpfs_paths = options.get("dbTmpfsPaths", ["/tmp", "/var/tmp", "/run"])
-    if "dbTmpfsPaths" not in options and db_image.startswith(("postgres:", "docker.io/library/postgres:")):
+    db_data_path = options.get("dbDataPath")
+    if "dbTmpfsPaths" not in options and db_data_path is None and db_image.startswith(
+        ("postgres:", "docker.io/library/postgres:")
+    ):
         tag = db_image.split("@", 1)[0].rsplit(":", 1)[-1]
         version = tag.split(".", 1)[0]
         data_path = (
@@ -237,7 +240,10 @@ def _to_submission(
             if version.isdigit() and int(version) >= 18
             else "/var/lib/postgresql/data"
         )
-        db_tmpfs_paths.append(data_path)
+        if settings.db_data_storage == "volume":
+            db_data_path = data_path
+        else:
+            db_tmpfs_paths.append(data_path)
 
     return TaskSubmission(
         id=task_id,
@@ -251,6 +257,7 @@ def _to_submission(
         db_command=_command(db_context.get("command", []), "database"),
         loadgen_command=_command(loadgen_context.get("command", []), "loader"),
         db_tmpfs_paths=db_tmpfs_paths,
+        db_data_path=db_data_path,
         timeout_seconds=options.get("timeoutSeconds", 3600),
         db_startup_grace_seconds=options.get("dbStartupGraceSeconds", 5.0),
         db_cpu_fraction=db_cpu / (db_cpu + loadgen_cpu),

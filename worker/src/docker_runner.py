@@ -11,7 +11,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 
 import docker
 from docker.errors import APIError, DockerException, ImageNotFound, NotFound
-from docker.types import LogConfig
+from docker.types import LogConfig, Mount
 
 from src.config import Settings
 from src.models import TaskSubmission
@@ -57,6 +57,7 @@ class DockerSandboxRunner:
         worker_container = None
         db_container = None
         loadgen_container = None
+        data_volume = None
         exit_code: int | None = None
         error: BaseException | None = None
         db_logs = ""
@@ -87,6 +88,16 @@ class DockerSandboxRunner:
                     network.connect, worker_container, aliases=["worker"]
                 )
 
+            if task.db_data_path:
+                # Per-task volume on disk for the database data directory: real fsync costs,
+                # removed together with the task in _cleanup.
+                data_volume = await asyncio.to_thread(
+                    self.client.volumes.create,
+                    name=f"db-load-worker-{digest}-data",
+                    driver="local",
+                    labels=labels,
+                )
+
             db_cpu = task.cpu_cores * task.db_cpu_fraction
             loadgen_cpu = task.cpu_cores - db_cpu
             total_memory = task.memory_mb * 1024 * 1024
@@ -104,6 +115,7 @@ class DockerSandboxRunner:
                 tmpfs_paths=task.db_tmpfs_paths,
                 command=task.db_command,
                 labels=labels,
+                data_volume=(data_volume.name, task.db_data_path) if data_volume else None,
             )
             await asyncio.to_thread(db_container.start)
             await self._wait_for_db(db_container, task.db_startup_grace_seconds)
@@ -143,7 +155,7 @@ class DockerSandboxRunner:
             # Shield cleanup so API shutdown/cancellation does not leave named
             # containers or networks running on the host.
             cleanup_task = asyncio.create_task(
-                self._cleanup(db_container, loadgen_container, network, worker_container)
+                self._cleanup(db_container, loadgen_container, network, worker_container, data_volume)
             )
             try:
                 db_logs, loadgen_logs, cleanup_errors = await asyncio.shield(cleanup_task)
@@ -168,6 +180,24 @@ class DockerSandboxRunner:
                 except Exception:
                     logger.warning(
                         "Could not remove task resource metrics for %s",
+                        task.id,
+                        exc_info=True,
+                    )
+                # Load-generator metrics: let Prometheus scrape the final values, then drop the
+                # group so finished runs stop extending their last value to "now" on dashboards.
+                try:
+                    await asyncio.sleep(max(2.0, 2 * self.settings.metrics_scrape_seconds))
+                    await asyncio.to_thread(
+                        delete_metrics_group,
+                        self.settings.prometheus_pushgateway_url,
+                        "dbehave",
+                        {"run_id": task.id},
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.warning(
+                        "Could not remove load-generator metrics for %s",
                         task.id,
                         exc_info=True,
                     )
@@ -223,6 +253,7 @@ class DockerSandboxRunner:
         tmpfs_paths: list[str],
         command: list[str] | None,
         labels: dict[str, str],
+        data_volume: tuple[str, str] | None = None,
     ) -> Any:
         tmpfs = {
             path: (
@@ -270,6 +301,11 @@ class DockerSandboxRunner:
                 security_opt=["no-new-privileges:true"],
                 read_only=True,
                 tmpfs=tmpfs,
+                # Mount API, not Binds: the audit below rejects any bind mounts.
+                mounts=(
+                    [Mount(target=data_volume[1], source=data_volume[0], type="volume")]
+                    if data_volume else None
+                ),
                 privileged=False,
                 ipc_mode="private",
                 cgroupns="private",
@@ -283,17 +319,25 @@ class DockerSandboxRunner:
             )
             # Images may declare VOLUME in their Dockerfile. Do not let such
             # implicit anonymous volumes write to Docker-managed host storage.
-            # Every actual mount must be one of the tmpfs mounts requested above.
+            # Every actual mount must be one of the tmpfs mounts requested above
+            # or the task's own data volume.
             await asyncio.to_thread(container.reload)
             self._audit_container(
                 container,
                 expected_cpu_nano=max(100_000_000, int(cpu_cores * 1_000_000_000)),
                 expected_memory=memory_bytes,
                 expected_network=network,
+                expected_volume=data_volume[0] if data_volume else None,
             )
             unexpected_mounts = [
                 mount for mount in container.attrs.get("Mounts", [])
                 if mount.get("Type") != "tmpfs"
+                and not (
+                    data_volume is not None
+                    and mount.get("Type") == "volume"
+                    and mount.get("Name") == data_volume[0]
+                    and mount.get("Destination") == data_volume[1]
+                )
             ]
             if unexpected_mounts:
                 await asyncio.to_thread(container.remove, force=True, v=True)
@@ -303,7 +347,7 @@ class DockerSandboxRunner:
                 )
                 raise SandboxError(
                     f"Image {image!r} requested a non-tmpfs mount ({details}); "
-                    "add its data directory to the role's tmpfs paths"
+                    "add its data directory to db_data_path or to the role's tmpfs paths"
                 )
             return container
         except (APIError, DockerException) as exc:
@@ -328,6 +372,7 @@ class DockerSandboxRunner:
         expected_cpu_nano: int,
         expected_memory: int,
         expected_network: str,
+        expected_volume: str | None = None,
     ) -> None:
         host = container.attrs.get("HostConfig", {})
         expected = {
@@ -355,6 +400,13 @@ class DockerSandboxRunner:
             mismatches.append("host port publishing is configured")
         if host.get("Binds") or host.get("Devices") or host.get("DeviceRequests"):
             mismatches.append("host binds or devices are configured")
+        for mount in host.get("Mounts") or []:
+            if not (
+                expected_volume is not None
+                and mount.get("Type") == "volume"
+                and mount.get("Source") == expected_volume
+            ):
+                mismatches.append(f"unexpected mount {mount.get('Type')}:{mount.get('Source')}")
         if host.get("PidMode") == "host":
             mismatches.append("host PID namespace is enabled")
         if "ALL" not in (host.get("CapDrop") or []):
@@ -563,6 +615,7 @@ class DockerSandboxRunner:
         loadgen_container: Any | None,
         network: Any | None,
         worker_container: Any | None = None,
+        data_volume: Any | None = None,
     ) -> tuple[str, str, list[str]]:
         # Stop the load generator first so it cannot continue producing work
         # while the database is being shut down.
@@ -620,6 +673,15 @@ class DockerSandboxRunner:
             except (APIError, DockerException) as exc:
                 cleanup_errors.append(
                     f"remove network {getattr(network, 'name', 'network')}: {exc}"
+                )
+        if data_volume is not None:
+            try:
+                await asyncio.to_thread(data_volume.remove, force=True)
+            except NotFound:
+                pass
+            except (APIError, DockerException) as exc:
+                cleanup_errors.append(
+                    f"remove volume {getattr(data_volume, 'name', 'data')}: {exc}"
                 )
         return logs_by_role["db"], logs_by_role["loadgen"], cleanup_errors
 
@@ -699,3 +761,12 @@ async def remove_stale_resources(client: docker.DockerClient) -> None:
             await asyncio.to_thread(network.remove)
         except (APIError, DockerException, NotFound):
             logger.exception("Could not remove stale network %s", network.name)
+
+    volumes = await asyncio.to_thread(
+        client.volumes.list, filters={"label": [f"{MANAGED_LABEL}=true", f"{APP_LABEL}=worker"]}
+    )
+    for volume in volumes:
+        try:
+            await asyncio.to_thread(volume.remove, force=True)
+        except (APIError, DockerException, NotFound):
+            logger.exception("Could not remove stale volume %s", volume.name)
