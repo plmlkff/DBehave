@@ -3,7 +3,6 @@ import type { MouseEvent, SyntheticEvent } from 'react'
 import { ArrowUpRight, History, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 import {
-  compareExperiments,
   deleteExperiments,
   experimentStateLabel,
   isExperimentFinished,
@@ -14,18 +13,15 @@ import { routes } from '@/shared/config/routes'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel } from '@/shared/ui/panel'
-import { matchesSelection, selectedRunIds, toggleAllRunSelection, toggleRunSelection, validationMessages } from '../model/history-actions'
+import { selectedRunIds, toggleAllRunSelection, toggleRunSelection, validationMessages } from '../model/history-actions'
 import styles from './experiments-page.module.css'
-
-type ComparisonLink = { runIds: string[]; grafanaUrl: string }
 
 export function ExperimentsPage() {
   const navigate = useNavigate()
   const { runs, error, loading, retry } = useExperimentHistory()
   const [selection, setSelection] = useState<string[]>([])
   const [deletion, setDeletion] = useState<string[] | null>(null)
-  const [comparison, setComparison] = useState<ComparisonLink | null>(null)
-  const [pending, setPending] = useState<'delete' | 'compare' | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const requestRef = useRef<AbortController | null>(null)
   const dialogRef = useRef<HTMLDialogElement | null>(null)
@@ -33,8 +29,6 @@ export function ExperimentsPage() {
   const historyTitleRef = useRef<HTMLHeadingElement | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
   const selected = selectedRunIds(runs ?? [], selection)
-  const comparisonReady = comparison && matchesSelection(comparison.runIds, selected)
-  const busy = pending !== null
   const allSelected = !!runs?.length && selected.length === runs.length
   const createExperiment = () => navigate(routes.newExperiment)
 
@@ -51,19 +45,16 @@ export function ExperimentsPage() {
 
   function changeSelection(id: string) {
     setSelection(current => toggleRunSelection(current, id))
-    setComparison(null)
     setActionError(null)
   }
 
   function clearSelection() {
     setSelection([])
-    setComparison(null)
     setActionError(null)
   }
 
   function toggleAllDisplayed() {
     setSelection(current => toggleAllRunSelection(runs ?? [], current))
-    setComparison(null)
     setActionError(null)
   }
 
@@ -96,7 +87,7 @@ export function ExperimentsPage() {
     const runIds = deletion
     const controller = new AbortController()
     requestRef.current = controller
-    setPending('delete')
+    setDeleting(true)
     setActionError(null)
 
     try {
@@ -105,7 +96,6 @@ export function ExperimentsPage() {
       const deleted = new Set(runIds)
       setDeletion(null)
       setSelection(current => current.filter(id => !deleted.has(id)))
-      setComparison(null)
       retry()
     } catch (caught) {
       if (!controller.signal.aborted) {
@@ -113,27 +103,7 @@ export function ExperimentsPage() {
       }
     } finally {
       if (requestRef.current === controller) requestRef.current = null
-      if (!controller.signal.aborted) setPending(null)
-    }
-  }
-
-  async function compareSelected() {
-    if (selected.length < 2 || requestRef.current) return
-    const runIds = selected
-    const controller = new AbortController()
-    requestRef.current = controller
-    setPending('compare')
-    setComparison(null)
-    setActionError(null)
-
-    try {
-      const result = await compareExperiments(runIds, controller.signal)
-      if (!controller.signal.aborted) setComparison({ runIds, grafanaUrl: result.grafanaUrl })
-    } catch (caught) {
-      if (!controller.signal.aborted) setActionError(actionErrorMessage(caught, 'Не удалось подготовить сравнение'))
-    } finally {
-      if (requestRef.current === controller) requestRef.current = null
-      if (!controller.signal.aborted) setPending(null)
+      if (!controller.signal.aborted) setDeleting(false)
     }
   }
 
@@ -154,7 +124,7 @@ export function ExperimentsPage() {
         <div className={styles.toolbar}>
           <h2 id="history-title" ref={historyTitleRef} tabIndex={-1}>Последние 100 запусков</h2>
           <div className={styles.toolbarActions}>
-            <Button variant="secondary" onClick={retry} disabled={loading || busy}>
+            <Button variant="secondary" onClick={retry} disabled={loading || deleting}>
               <RefreshCw size={15} aria-hidden="true" />
               {loading ? 'Обновляем…' : 'Обновить'}
             </Button>
@@ -170,30 +140,21 @@ export function ExperimentsPage() {
                 type="checkbox"
                 aria-label="Выбрать все отображаемые запуски (последние 100)"
                 checked={allSelected}
-                disabled={busy}
+                disabled={deleting}
                 onChange={toggleAllDisplayed}
               />
               Выбрать все отображаемые
             </label>
-            <p id="comparison-selection-hint" role="status">{selected.length
+            <p id="history-selection-hint" role="status">{selected.length
               ? `Выбрано ${selected.length}`
-              : 'Выберите запуски для сравнения или удаления.'}</p>
+              : 'Выберите запуски для удаления.'}</p>
             <div className={styles.toolbarActions}>
-              {comparisonReady ? (
-                <a className={styles.comparisonLink} href={comparison.grafanaUrl} target="_blank" rel="noopener noreferrer">
-                  Открыть сравнение в Grafana <ArrowUpRight size={15} aria-hidden="true" />
-                </a>
-              ) : (
-                <Button onClick={compareSelected} disabled={selected.length < 2 || busy || !!deletion} aria-describedby="comparison-selection-hint" title={selected.length < 2 ? 'Для сравнения выберите минимум два запуска' : undefined}>
-                  {pending === 'compare' ? 'Готовим сравнение…' : 'Сравнить в Grafana'}
-                </Button>
-              )}
-              <Button variant="secondary" className={styles.dangerButton} onClick={showDeleteConfirmation} disabled={!selected.length || busy}>
+              <Button variant="secondary" className={styles.dangerButton} onClick={showDeleteConfirmation} disabled={!selected.length || deleting} aria-describedby="history-selection-hint">
                 <Trash2 size={15} aria-hidden="true" />
                 Удалить выбранные
               </Button>
               {!!selected.length && (
-                <Button variant="secondary" disabled={busy} onClick={clearSelection}>Снять выделение</Button>
+                <Button variant="secondary" disabled={deleting} onClick={clearSelection}>Снять выделение</Button>
               )}
             </div>
           </div>
@@ -204,7 +165,7 @@ export function ExperimentsPage() {
         {error && (
           <div className={styles.errorState}>
             <p role="alert">Не удалось обновить историю. {error}</p>
-            <Button variant="secondary" onClick={retry} disabled={loading || busy}>Повторить</Button>
+            <Button variant="secondary" onClick={retry} disabled={loading || deleting}>Повторить</Button>
           </div>
         )}
 
@@ -217,7 +178,7 @@ export function ExperimentsPage() {
                   type="checkbox"
                   aria-label={`Выбрать запуск ${run.id}`}
                   checked={selected.includes(run.id)}
-                  disabled={busy}
+                  disabled={deleting}
                   onChange={() => changeSelection(run.id)}
                 />
                 <div className={styles.experiment}>
@@ -265,7 +226,7 @@ export function ExperimentsPage() {
         className={styles.deleteDialog}
         aria-labelledby="history-delete-title"
         aria-describedby="history-delete-description"
-        aria-busy={pending === 'delete'}
+        aria-busy={deleting}
         onCancel={cancelDialog}
         onClose={dialogClosed}
       >
@@ -273,9 +234,9 @@ export function ExperimentsPage() {
         <p id="history-delete-description">Выбранные запуски ({deletion?.length ?? 0}) будут скрыты из истории. Выполняющиеся задачи продолжат работу.</p>
         {actionError && <p className={styles.dialogError} role="alert">{actionError}</p>}
         <div className={styles.toolbarActions}>
-          <Button variant="secondary" disabled={busy} onClick={cancelDelete} autoFocus>Отмена</Button>
-          <Button variant="secondary" className={styles.dangerButton} disabled={busy} onClick={deleteConfirmed}>
-            {pending === 'delete' ? 'Удаляем…' : 'Удалить выбранные'}
+          <Button variant="secondary" disabled={deleting} onClick={cancelDelete} autoFocus>Отмена</Button>
+          <Button variant="secondary" className={styles.dangerButton} disabled={deleting} onClick={deleteConfirmed}>
+            {deleting ? 'Удаляем…' : 'Удалить выбранные'}
           </Button>
         </div>
       </dialog>

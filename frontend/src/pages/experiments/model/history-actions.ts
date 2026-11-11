@@ -14,12 +14,6 @@ export function toggleAllRunSelection(runs: readonly RunIdentity[], selection: r
   return selectedRunIds(runs, selection).length === visibleIds.length ? [] : visibleIds
 }
 
-export function matchesSelection(comparison: readonly string[], selection: readonly string[]) {
-  const compared = new Set(comparison)
-  const selected = new Set(selection)
-  return compared.size === selected.size && [...compared].every(id => selected.has(id))
-}
-
 export function validationMessages(body: unknown): string[] {
   if (!body || typeof body !== 'object' || !('fieldErrors' in body) || !Array.isArray(body.fieldErrors)) return []
   const messages = body.fieldErrors.flatMap(error => (

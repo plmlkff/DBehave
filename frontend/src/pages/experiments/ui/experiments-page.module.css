@@ -8,8 +8,6 @@
 .selectionBar p { color: var(--color-text-muted); font-size: 13px; line-height: 22px; }
 .selectAll { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; line-height: 22px; cursor: pointer; }
 .selectAll .checkbox { margin: 0; }
-.comparisonLink { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 40px; padding: 9px 16px; border: 1px solid transparent; border-radius: var(--radius-md); background: var(--color-accent); color: var(--color-on-accent); font-weight: 500; line-height: 20px; }
-.comparisonLink:hover { background: var(--color-accent-hover); }
 .deleteDialog { width: min(520px, calc(100% - 32px)); margin: auto; padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); box-shadow: 0 24px 80px #0008; }
 .deleteDialog::backdrop { background: #0009; }
 .deleteDialog h2 { font-size: 18px; font-weight: 600; line-height: 26px; }

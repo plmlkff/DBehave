@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { matchesSelection, selectedRunIds, toggleAllRunSelection, toggleRunSelection, validationMessages } from '../src/pages/experiments/model/history-actions.ts'
+import { selectedRunIds, toggleAllRunSelection, toggleRunSelection, validationMessages } from '../src/pages/experiments/model/history-actions.ts'
 
 test('selection only includes runs still present in the refreshed history', () => {
   const selection = ['run-b', 'deleted-run', 'run-a']
@@ -27,19 +27,12 @@ test('selecting all is limited to displayed runs and never includes older or del
   assert.deepEqual(selection, ['older-outside-page', 'visible-a'])
 })
 
-test('a prepared comparison becomes unavailable when any selected run changes or disappears', () => {
-  assert.equal(matchesSelection(['run-a', 'run-b'], ['run-b', 'run-a']), true)
-  assert.equal(matchesSelection(['run-a', 'run-b'], ['run-a', 'run-c']), false)
-  assert.equal(matchesSelection(['run-a', 'run-b'], ['run-a']), false)
-  assert.equal(matchesSelection(['run-a', 'run-b'], []), false)
-})
-
-test('comparison incompatibility messages remain readable and repeated messages are collapsed', () => {
+test('deletion validation messages remain readable and repeated messages are collapsed', () => {
   assert.deepEqual(validationMessages({ fieldErrors: [
-    { field: 'runIds', message: 'Выберите запуски одной доски Grafana.' },
-    { field: 'runIds[1]', message: 'Выберите запуски одной доски Grafana.' },
-    { field: 'runIds', message: 'Требуется минимум два запуска.' },
-  ] }), ['Выберите запуски одной доски Grafana.', 'Требуется минимум два запуска.'])
+    { field: 'runIds', message: 'Укажите запуски для удаления.' },
+    { field: 'runIds[0]', message: 'Укажите запуски для удаления.' },
+    { field: 'runIds[1]', message: 'Некорректный идентификатор запуска.' },
+  ] }), ['Укажите запуски для удаления.', 'Некорректный идентификатор запуска.'])
   for (const body of [null, undefined, 'error', {}, { fieldErrors: null }, { fieldErrors: [null, 1, { message: 404 }] }]) {
     assert.deepEqual(validationMessages(body), [])
   }
