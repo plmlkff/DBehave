@@ -2,7 +2,10 @@
 
 Образ, который воркер запускает рядом с контейнером `postgres:18`. Нагрузчик готовит данные, гоняет клиентов
 и отдаёт состояние и метрики по HTTP. Какие контейнеры и с какими параметрами запускать, решает плагин
-[`plugins/postgres`](../postgres): `PostgresPlugin.prepare()` возвращает `ExperimentPlan`.
+[`plugins/postgres`](../postgres). Платформенный `PostgresContextCollector` использует те же настройки и единицы,
+сохраняет готовый контекст двух образов в `worker.tasks`. Контракт и примеры API —
+в [документации платформы](../../docs/plugin-platform.md). `PostgresPlugin.prepare()`
+также доступен для прямого построения `ExperimentPlan`.
 
 ## Контракт с воркером
 
@@ -96,13 +99,16 @@
 # образ (из корня репозитория)
 docker build -f plugins/postgres-load/Dockerfile -t dbehave/postgres-load:0.1.0 .
 
-# стенд без воркера: БД + нагрузчик + Prometheus + Grafana (http://localhost:3000)
+# стенд без воркера: БД + нагрузчик + Prometheus + Grafana (http://localhost:3001)
 docker compose -f plugins/postgres-load/dev/compose.yaml up -d --build
 docker compose -f plugins/postgres-load/dev/compose.yaml logs -f load
 
 # повторить запуск после правок command у database или environment у load
 docker compose -f plugins/postgres-load/dev/compose.yaml up -d --force-recreate database load
 ```
+
+Порт Grafana по умолчанию 3001, чтобы стенд не конфликтовал с фронтендом платформы
+на 3000. Переопределить: `GRAFANA_PORT=3300 docker compose -f plugins/postgres-load/dev/compose.yaml up -d`.
 
 Стенд проводит один запуск сценария из `environment` сервиса `load` (по умолчанию write-heavy, 40 с).
 Prometheus играет роль воркера: опрашивает нагрузчик раз в 2 с и ставит `run_id=local`, поэтому

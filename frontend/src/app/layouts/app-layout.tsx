@@ -9,7 +9,9 @@ export function AppLayout() {
   const mainRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
-    const title = pathname === routes.experiments ? 'История запусков' : 'Новый эксперимент'
+    let title = 'Новый эксперимент'
+    if (pathname === routes.experiments) title = 'История запусков'
+    else if (pathname.startsWith(`${routes.experiments}/`) && pathname !== routes.newExperiment) title = 'Запуск эксперимента'
     document.title = `${title} — DBehave`
     mainRef.current?.focus({ preventScroll: true })
   }, [pathname])

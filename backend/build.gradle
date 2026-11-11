@@ -19,6 +19,8 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    inputs.property('integrationDatabaseUrl', providers.environmentVariable('DBEHAVE_TEST_DATABASE_URL').orElse(''))
+    inputs.property('integrationDatabaseUsername', providers.environmentVariable('DBEHAVE_TEST_DATABASE_USERNAME').orElse('postgres'))
 }
 
 tasks.named('bootJar') {

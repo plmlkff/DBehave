@@ -3,7 +3,7 @@
 #   docker compose -f plugins/postgres-load/dev/compose.yaml logs -f load
 # Повторить запуск после правок:
 #   docker compose -f plugins/postgres-load/dev/compose.yaml up -d --force-recreate database load
-# Grafana: http://localhost:3000 (дашборд «DBehave · PostgreSQL», запуск run_id=local)
+# Grafana: http://localhost:3001 (дашборд «DBehave · PostgreSQL», запуск run_id=local)
 # Сценарий и параметры меняются в environment сервиса load, настройки PostgreSQL — в command сервиса database.
 services:
   database:
@@ -54,4 +54,4 @@ services:
       - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
       - ../grafana:/var/lib/grafana/dashboards/dbehave:ro
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"

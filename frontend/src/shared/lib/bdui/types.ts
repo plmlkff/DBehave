@@ -1,5 +1,5 @@
 export type FieldType = 'INTEGER' | 'NUMBER' | 'BOOLEAN' | 'STRING' | 'ENUM'
-export type FieldValue = string | number | boolean
+export type FieldValue = string | number | boolean | null
 export type FieldValues = Record<string, FieldValue>
 export type FieldErrors = Record<string, string>
 
@@ -10,6 +10,7 @@ export type FieldSpec = {
   type: FieldType
   defaultValue: FieldValue
   min: number | null
+  minExclusive?: boolean
   max: number | null
   unit: string | null
   options: string[]

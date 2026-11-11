@@ -1,7 +1,7 @@
 import type { FieldSpec, FieldValue } from '@/shared/lib/bdui'
 
 export type ExperimentSection = {
-  id: 'settings' | 'params'
+  id: 'settings' | 'params' | 'loaderImageContext' | 'databaseImageContext'
   fields: FieldSpec[]
 }
 
@@ -29,6 +29,23 @@ export type ExperimentRequest = {
   scenarioId: string
   settings: Record<string, FieldValue>
   params: Record<string, FieldValue>
+  loaderImageContext: Record<string, FieldValue>
+  databaseImageContext: Record<string, FieldValue>
 }
 
 export type ValidationResult = { status: string; execution: string }
+
+export type ExperimentRun = {
+  id: string
+  state: string
+  createdAt: string
+  updatedAt: string
+  heartbeat: string | null
+  workerId: string | null
+  error: string | null
+  grafanaUrl: string | null
+  pluginId: string | null
+  pluginTitle: string | null
+  scenarioId: string | null
+  scenarioTitle: string | null
+}
