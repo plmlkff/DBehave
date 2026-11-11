@@ -72,7 +72,11 @@ export function ExperimentRunPage() {
           )}
           <Panel aria-labelledby="run-charts-title">
             <h2 id="run-charts-title" className={styles.sectionTitle}>Графики</h2>
+<<<<<<< Updated upstream
             {chartUrl ? (
+=======
+            {run.grafanaUrl && chartUrl ? (
+>>>>>>> Stashed changes
               <>
                 <iframe
                   className={styles.grafanaFrame}
@@ -81,7 +85,11 @@ export function ExperimentRunPage() {
                   loading="lazy"
                   allow="fullscreen"
                 />
+<<<<<<< Updated upstream
                 <a className={styles.grafanaLink} href={run.grafanaUrl ?? chartUrl} target="_blank" rel="noopener noreferrer">
+=======
+                <a className={styles.grafanaLink} href={run.grafanaUrl} target="_blank" rel="noopener noreferrer">
+>>>>>>> Stashed changes
                   Открыть Grafana отдельно <ExternalLink size={16} aria-hidden="true" />
                 </a>
               </>
