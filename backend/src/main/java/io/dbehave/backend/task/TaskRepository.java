@@ -1,6 +1,8 @@
 package io.dbehave.backend.task;
 
 import io.dbehave.backend.experiment.ExperimentRun;
+import io.dbehave.backend.experiment.ExperimentRequest;
+import io.dbehave.backend.experiment.GrafanaUrl;
 import io.dbehave.backend.validation.JsonbValidation;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -18,9 +20,13 @@ public class TaskRepository {
             SELECT task.id, task.state, task.created_at, task.updated_at,
                    task.heartbeat, task.worker_id, task.error,
                    experiment.grafana_url, experiment.plugin_id, experiment.plugin_title,
-                   experiment.scenario_id, experiment.scenario_title
+                   experiment.scenario_id, experiment.scenario_title,
+                   experiment.configuration, experiment.grafana_url_template
             FROM worker.tasks AS task
             LEFT JOIN dbehave.experiments AS experiment ON experiment.task_id = task.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM dbehave.hidden_experiments AS hidden WHERE hidden.task_id = task.id
+            )
             """;
 
     private final JdbcTemplate jdbc;
@@ -49,18 +55,28 @@ public class TaskRepository {
 
     public void insertExperiment(
             UUID id, String pluginId, String pluginTitle,
-            String scenarioId, String scenarioTitle, String grafanaUrl
+            String scenarioId, String scenarioTitle, String grafanaUrl,
+            ExperimentRequest configuration, String grafanaUrlTemplate
     ) {
+        jsonb.validate(configuration, "configuration");
         jdbc.update("""
                 INSERT INTO dbehave.experiments
-                    (task_id, plugin_id, plugin_title, scenario_id, scenario_title, grafana_url)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, id, pluginId, pluginTitle, scenarioId, scenarioTitle, grafanaUrl);
+                    (task_id, plugin_id, plugin_title, scenario_id, scenario_title, grafana_url,
+                     configuration, grafana_url_template)
+                VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
+                """, id, pluginId, pluginTitle, scenarioId, scenarioTitle, grafanaUrl,
+                json.writeValueAsString(configuration), grafanaUrlTemplate);
     }
 
     public Optional<ExperimentRun> findExperimentById(UUID id) {
-        return jdbc.query(EXPERIMENT_QUERY + " WHERE task.id = ?", this::readExperiment, id)
+        return jdbc.query(EXPERIMENT_QUERY + " AND task.id = ?", this::readExperiment, id)
                 .stream().findFirst();
+    }
+
+    public List<ExperimentRun> findExperimentsByIds(List<UUID> ids) {
+        return jdbc.query(EXPERIMENT_QUERY + " AND task.id = ANY (?)",
+                statement -> statement.setArray(1, statement.getConnection().createArrayOf("uuid", ids.toArray())),
+                this::readExperiment);
     }
 
     public List<ExperimentRun> findRecentExperiments() {
@@ -68,8 +84,50 @@ public class TaskRepository {
                 this::readExperiment);
     }
 
+    public boolean hideExperiment(UUID id) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                WITH existing AS (
+                    SELECT id FROM worker.tasks WHERE id = ? FOR KEY SHARE
+                ), hidden AS (
+                    INSERT INTO dbehave.hidden_experiments (task_id)
+                    SELECT id FROM existing
+                    ON CONFLICT (task_id) DO NOTHING
+                )
+                SELECT EXISTS (SELECT 1 FROM existing)
+                """, Boolean.class, id));
+    }
+
+    public List<UUID> lockTaskIds(List<UUID> ids) {
+        return jdbc.query("SELECT id FROM worker.tasks WHERE id = ANY (?) ORDER BY id FOR KEY SHARE",
+                statement -> statement.setArray(1, statement.getConnection().createArrayOf("uuid", ids.toArray())),
+                (row, index) -> row.getObject("id", UUID.class));
+    }
+
+    public void hideExperiments(List<UUID> ids) {
+        jdbc.update("""
+                INSERT INTO dbehave.hidden_experiments (task_id)
+                SELECT id FROM unnest(?) AS selected(id) ORDER BY id
+                ON CONFLICT (task_id) DO NOTHING
+                """, statement -> statement.setArray(1,
+                statement.getConnection().createArrayOf("uuid", ids.toArray())));
+    }
+
+    public void hideAllExperiments() {
+        jdbc.update("""
+                INSERT INTO dbehave.hidden_experiments (task_id)
+                SELECT task.id FROM worker.tasks AS task
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM dbehave.hidden_experiments AS hidden WHERE hidden.task_id = task.id
+                )
+                ORDER BY task.id
+                FOR KEY SHARE OF task
+                ON CONFLICT (task_id) DO NOTHING
+                """);
+    }
+
     private ExperimentRun readExperiment(ResultSet row, int index) throws SQLException {
         Timestamp heartbeat = row.getTimestamp("heartbeat");
+        String configuration = row.getString("configuration");
         return new ExperimentRun(
                 row.getObject("id", UUID.class),
                 row.getString("state"),
@@ -78,11 +136,13 @@ public class TaskRepository {
                 heartbeat == null ? null : heartbeat.toInstant(),
                 row.getString("worker_id"),
                 row.getString("error"),
-                row.getString("grafana_url"),
+                GrafanaUrl.withKiosk(row.getString("grafana_url")),
                 row.getString("plugin_id"),
                 row.getString("plugin_title"),
                 row.getString("scenario_id"),
-                row.getString("scenario_title")
+                row.getString("scenario_title"),
+                configuration == null ? null : json.readValue(configuration, ExperimentRequest.class),
+                row.getString("grafana_url_template")
         );
     }
 

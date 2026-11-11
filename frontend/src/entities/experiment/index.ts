@@ -1,4 +1,7 @@
-export { getScenarios, getExperimentScreen, validateExperiment, createExperiment, getExperiment, getExperiments } from './api/experiment-api'
+export {
+  getScenarios, getExperimentScreen, validateExperiment, createExperiment, getExperiment, getExperiments,
+  deleteExperiment, deleteExperiments,
+} from './api/experiment-api'
 export { buildExperimentRequest, createInitialValues } from './model/form-values'
 export { useExperimentRun, useExperimentHistory } from './model/use-experiment-runs'
 export { isExperimentFinished, experimentStateLabel } from './model/run-state'

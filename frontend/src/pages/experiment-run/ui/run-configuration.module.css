@@ -1,0 +1,12 @@
+.configuration > summary { cursor: pointer; font-size: 18px; font-weight: 600; line-height: 26px; }
+.configuration > summary::marker { color: var(--color-accent); }
+.sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-6); }
+.section { min-width: 0; }
+.section h3 { margin-bottom: var(--space-3); font-size: 14px; font-weight: 500; }
+.section table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; line-height: 20px; }
+.section th, .section td { padding: var(--space-2); border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.section thead th { color: var(--color-text-muted); font-weight: 400; }
+.section tbody th { font-family: var(--font-mono); font-weight: 400; }
+.section td { white-space: pre-wrap; }
+.notice { margin-top: var(--space-3); color: var(--color-text-muted); font-size: 13px; line-height: 22px; }
+@media (max-width: 900px) { .sections { grid-template-columns: minmax(0, 1fr); } }
