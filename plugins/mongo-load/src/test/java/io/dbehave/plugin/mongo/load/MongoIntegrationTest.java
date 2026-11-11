@@ -2,15 +2,18 @@ package io.dbehave.plugin.mongo.load;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.ServerAddress;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import io.dbehave.plugin.load.RunState;
+import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,11 +46,70 @@ class MongoIntegrationTest {
                         "dbehave_run_info{engine=\"mongo\",");
                 if (scenario.equals("write-heavy")) {
                     assertThat(scrape(metrics)).contains("dbehave_records_written_total{op=\"insert\"}",
-                            "dbehave_mongo_storage_bytes_per_document");
+                            "dbehave_mongo_storage_bytes_per_document", "journalCompressor=snappy")
+                            .containsPattern("(?m)^dbehave_mongo_journal_written_bytes_total [1-9]");
                 }
             } finally {
                 database.drop();
             }
+        }
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI", matches = ".+")
+    void journalCompressionReducesBytesForTheSameNumberOfWrites() {
+        try (var compressed = MongoClients.create(URI);
+             var uncompressed = MongoClients.create(System.getenv("DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI"))) {
+            assertThat(journalBytesForFixedBatchCount(compressed))
+                    .isPositive().isLessThan(journalBytesForFixedBatchCount(uncompressed));
+        }
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI", matches = ".+")
+    void prefixCompressionReducesSizeOfTheSameMultikeyIndex() {
+        try (var compressed = MongoClients.create(URI);
+             var uncompressed = MongoClients.create(System.getenv("DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI"))) {
+            assertThat(skuIndexBytes(compressed)).isPositive().isLessThan(skuIndexBytes(uncompressed));
+        }
+    }
+
+    private static long journalBytesForFixedBatchCount(MongoClient client) {
+        var database = client.getDatabase(databaseName());
+        var admin = client.getDatabase("admin");
+        var config = new Config(Map.of("SCENARIO", "write-heavy", "MONGO_JOURNAL_ACKNOWLEDGED", "true",
+                "BATCH_SIZE", "64", "PAYLOAD_BYTES", "2048"));
+        try {
+            var scenario = new WriteHeavy(config, database, new Metrics());
+            scenario.prepare();
+            var step = scenario.client(0);
+            long before = journalBytes(admin);
+            for (int batch = 0; batch < 64; batch++) {
+                step.run();
+            }
+            long bytes = journalBytes(admin) - before;
+            assertThat(database.getCollection("events").countDocuments()).isEqualTo(4096);
+            return bytes;
+        } finally {
+            database.drop();
+        }
+    }
+
+    private static long journalBytes(MongoDatabase admin) {
+        return admin.runCommand(new Document("serverStatus", 1))
+                .getEmbedded(List.of("wiredTiger", "log", "log bytes written"), Number.class).longValue();
+    }
+
+    private static long skuIndexBytes(MongoClient client) {
+        var database = client.getDatabase(databaseName());
+        var config = new Config(Map.of("SCENARIO", "array-index", "DATASET_ROWS", "10000", "ITEMS_PER_ORDER", "20"));
+        var metrics = new Metrics();
+        try {
+            new ArrayIndex(config, database, metrics, new RunState(metrics)).prepare();
+            var stats = Data.storageStats(client.getDatabase("admin"), database.getCollection("orders"));
+            return stats.getEmbedded(List.of("indexSizes", "items.sku_1"), Number.class).longValue();
+        } finally {
+            database.drop();
         }
     }
 

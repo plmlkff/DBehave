@@ -37,12 +37,24 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      - name: Start MongoDB without compression for comparison
+        run: |
+          docker run --detach --name mongo-uncompressed --publish 127.0.0.1:27018:27017 mongo:8.0 \
+            mongod --bind_ip_all --wiredTigerJournalCompressor=none --wiredTigerIndexPrefixCompression=false
+          for attempt in {1..30}; do
+            if docker exec mongo-uncompressed mongosh --quiet --eval 'db.adminCommand({ping:1})' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
       - name: Build and test
         env:
           DBEHAVE_TEST_DATABASE_URL: jdbc:postgresql://localhost:5432/dbehave_test
           DBEHAVE_TEST_DATABASE_USERNAME: postgres
           DBEHAVE_TEST_DATABASE_PASSWORD: postgres
           DBEHAVE_TEST_MONGO_URI: mongodb://localhost:27017
+          DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI: mongodb://localhost:27018
         run: ./gradlew --no-daemon build
   frontend:
     runs-on: ubuntu-latest

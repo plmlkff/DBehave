@@ -5,6 +5,7 @@ import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.HashMap;
@@ -42,7 +43,8 @@ class MongoContextCollectorTest {
     @Test
     void sendsStorageSettingsToMongodAndAcknowledgmentToLoader() {
         var scenario = scenarios().getFirst();
-        var settings = Map.<String, Object>of("blockCompressor", "zstd", "journalAcknowledged", true);
+        var settings = defaults(scenario.settings());
+        settings.putAll(Map.of("blockCompressor", "zstd", "journalAcknowledged", true));
         var contexts = COLLECTOR.collect(DEFINITION, scenario, settings, defaults(scenario.params()));
 
         assertThat(contexts.databaseImageContext().get("command")).asList()
@@ -53,6 +55,33 @@ class MongoContextCollectorTest {
                 .containsEntry("MONGO_JOURNAL_ACKNOWLEDGED", "true")
                 .containsEntry("MONGO_BLOCK_COMPRESSOR", "zstd")
                 .containsEntry("BATCH_SIZE", "1");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"none", "snappy", "zstd"})
+    void sendsJournalCompressorToMongodAndLoader(String compressor) {
+        var scenario = scenarios().getFirst();
+        var settings = defaults(scenario.settings());
+        settings.put("journalCompressor", compressor);
+        var contexts = COLLECTOR.collect(DEFINITION, scenario, settings, defaults(scenario.params()));
+
+        assertThat(contexts.databaseImageContext().get("command")).asList()
+                .contains("--wiredTigerJournalCompressor=" + compressor, "--wiredTigerCollectionBlockCompressor=snappy");
+        assertThat(contexts.loaderImageContext().get("environment")).asInstanceOf(MAP)
+                .containsEntry("MONGO_JOURNAL_COMPRESSOR", compressor);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void sendsPrefixCompressionToMongodAndLoader(boolean enabled) {
+        var scenario = scenarios().getLast();
+        var contexts = COLLECTOR.collect(DEFINITION, scenario, Map.of("prefixCompression", enabled),
+                defaults(scenario.params()));
+
+        assertThat(contexts.databaseImageContext().get("command")).asList()
+                .contains("--wiredTigerIndexPrefixCompression=" + enabled);
+        assertThat(contexts.loaderImageContext().get("environment")).asInstanceOf(MAP)
+                .containsEntry("MONGO_PREFIX_COMPRESSION", Boolean.toString(enabled));
     }
 
     @Test

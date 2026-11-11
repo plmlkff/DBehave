@@ -56,7 +56,8 @@ key=value`, их единицы и булевы значения формати�
 
 `mongo` строит контексты для `mongo:8.0` и `dbehave/mongo-load:0.1.0`.
 Размер кеша WiredTiger задаётся в МиБ и преобразуется в ГиБ для аргумента
-`mongod --wiredTigerCacheSizeGB`. Сжатие коллекции передаётся аргументом `mongod`.
+`mongod --wiredTigerCacheSizeGB`. Сжатие коллекции, журнала и префиксов индексов
+передаётся аргументами `mongod`.
 Подтверждение журнала и временные файлы отчёта задаются в нагрузчике. Как и для PostgreSQL,
 параметры сценария передаются переменными `UPPER_SNAKE_CASE`. Worker монтирует
 `/data/db` согласно `WORKER_DB_DATA_STORAGE`, а `/data/configdb` — в tmpfs.

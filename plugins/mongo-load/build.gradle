@@ -23,4 +23,5 @@ application {
 tasks.named('test') {
     useJUnitPlatform()
     inputs.property('mongoIntegrationUri', providers.environmentVariable('DBEHAVE_TEST_MONGO_URI').orElse(''))
+    inputs.property('mongoUncompressedUri', providers.environmentVariable('DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI').orElse(''))
 }

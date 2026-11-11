@@ -20,6 +20,10 @@ final class Metrics extends LoadMetrics {
             .name("dbehave_mongo_cache_pages_read_total")
             .help("Страницы, прочитанные в кеш WiredTiger за время нагрузки")
             .register(registry());
+    private final Counter journalWritten = Counter.builder()
+            .name("dbehave_mongo_journal_written_bytes_total")
+            .help("Байты, записанные в журнал WiredTiger за время нагрузки")
+            .register(registry());
     private final Gauge collectionBytes = gauge("dbehave_mongo_collection_bytes", "Размер коллекции", "collection", "kind");
     private final Gauge storageBytesPerDocument = gauge("dbehave_mongo_storage_bytes_per_document",
             "Размер данных на диске в пересчёте на документ", "collection");
@@ -61,6 +65,10 @@ final class Metrics extends LoadMetrics {
         cacheBytes.labelValues("used").set(value(cache, "bytes currently in the cache"));
         cacheBytes.labelValues("limit").set(value(cache, "maximum bytes configured"));
         cacheReads.inc(pagesRead);
+    }
+
+    void journalWritten(long bytes) {
+        journalWritten.inc(bytes);
     }
 
     void storage(String collection, Document stats) {

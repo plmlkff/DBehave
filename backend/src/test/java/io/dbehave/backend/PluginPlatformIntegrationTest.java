@@ -824,6 +824,27 @@ class PluginPlatformIntegrationTest {
 
     @Test
     @Transactional
+    void queuesMongoCompressionSettingsAndRejectsInvalidValues() throws Exception {
+        var journal = startRun(Map.of("pluginId", "mongo", "scenarioId", "write-heavy",
+                "settings", Map.of("journalCompressor", "zstd")));
+        var journalContext = persistedContext(UUID.fromString((String) journal.get("id")));
+        assertThat(imageContext(journalContext, "databaseImageContext").get("command")).asList()
+                .contains("--wiredTigerJournalCompressor=zstd", "--wiredTigerCollectionBlockCompressor=snappy");
+
+        var prefix = startRun(Map.of("pluginId", "mongo", "scenarioId", "array-index",
+                "settings", Map.of("prefixCompression", false)));
+        var prefixContext = persistedContext(UUID.fromString((String) prefix.get("id")));
+        assertThat(imageContext(prefixContext, "databaseImageContext").get("command")).asList()
+                .contains("--wiredTigerIndexPrefixCompression=false");
+
+        assertRejectedBeforeQueue(Map.of("pluginId", "mongo", "scenarioId", "write-heavy",
+                "settings", Map.of("journalCompressor", "invalid")));
+        assertRejectedBeforeQueue(Map.of("pluginId", "mongo", "scenarioId", "array-index",
+                "settings", Map.of("prefixCompression", "false")));
+    }
+
+    @Test
+    @Transactional
     void rejectsComparisonOfDifferentScenariosAndSavedTemplates() throws Exception {
         var first = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
         var differentScenario = startRun(Map.of("pluginId", "postgres", "scenarioId", "read-heavy"));

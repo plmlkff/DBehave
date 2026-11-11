@@ -18,6 +18,10 @@ final class MongoScenarios {
             "Алгоритм сжатия данных новой коллекции на диске", "snappy", "none", "snappy", "zstd");
     static final FieldSpec JOURNAL_ACKNOWLEDGED = bool("journalAcknowledged", "Подтверждение после записи в журнал",
             "При w: 1 клиент ждёт записи на диск при включении этой настройки", false);
+    static final FieldSpec JOURNAL_COMPRESSOR = enumeration("journalCompressor", "Сжатие журнала",
+            "Алгоритм сжатия журнала WiredTiger", "snappy", "none", "snappy", "zstd");
+    static final FieldSpec PREFIX_COMPRESSION = bool("prefixCompression", "Сжатие префиксов индекса",
+            "Сжимать общие префиксы ключей. Для сравнения включите индекс по SKU", true);
     static final FieldSpec ALLOW_DISK_USE = bool("allowDiskUse", "Разрешить отчёту временные файлы",
             "При превышении 100 МиБ на сортировку отчёт использует диск или возвращает ошибку", true);
 
@@ -28,7 +32,7 @@ final class MongoScenarios {
         return List.of(
                 new Scenario("write-heavy", "Интенсивная запись",
                         "Параллельные вставки пачками. Сравните подтверждение записи, стоимость индексов и сжатие.",
-                        List.of(JOURNAL_ACKNOWLEDGED, BLOCK_COMPRESSOR),
+                        List.of(JOURNAL_ACKNOWLEDGED, BLOCK_COMPRESSOR, JOURNAL_COMPRESSOR),
                         load(integer("batchSize", "Документов в пачке", "Количество документов в одной вставке",
                                         1, 1, 1000, null),
                                 integer("extraIndexes", "Дополнительные индексы", "Число индексов сверх _id",
@@ -56,7 +60,7 @@ final class MongoScenarios {
                                 distribution())),
                 new Scenario("array-index", "Поиск по массиву в документе",
                         "Поиск заказов по SKU в массиве позиций. Сравните планы запросов и размер multikey-индекса.",
-                        List.of(),
+                        List.of(PREFIX_COMPRESSION),
                         load(integer("datasetRows", "Количество заказов", "Начальное число документов заказов",
                                         100_000, 1_000, 1_000_000, null),
                                 bool("multikeyIndex", "Индекс по SKU", "Создать индекс на items.sku", true),

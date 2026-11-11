@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 5,
+  "version": 6,
   "editable": true,
   "refresh": "",
   "time": {
@@ -719,7 +719,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 38
       },
@@ -763,8 +763,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 38
       },
       "targets": [
@@ -796,6 +796,50 @@
         "orientation": "vertical"
       },
       "description": "Размер данных на диске в пересчёте на документ"
+    },
+    {
+      "type": "stat",
+      "title": "Журнал на документ",
+      "id": 37,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((last_over_time(dbehave_mongo_journal_written_bytes_total{run_id=~\"$run_id\"}[$__range]) / on (run_id) (last_over_time(dbehave_records_written_total{run_id=~\"$run_id\",op=\"insert\"}[$__range]) > 0)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "textMode": "value_and_name",
+        "text": {
+          "titleSize": 14,
+          "valueSize": 28
+        },
+        "orientation": "vertical"
+      },
+      "description": "Байты журнала WiredTiger на подтверждённый документ в write-heavy"
     },
     {
       "type": "stat",

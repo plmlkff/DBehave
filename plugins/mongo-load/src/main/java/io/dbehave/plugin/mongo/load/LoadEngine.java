@@ -18,7 +18,9 @@ final class LoadEngine {
     private final MongoDatabase admin;
     private final RunState state;
     private final Metrics metrics;
+    private final boolean sampleJournal;
     private long previousPagesRead = -1;
+    private long previousJournalBytes = -1;
     private boolean samplingFailed;
 
     LoadEngine(Config config, MongoDatabase admin, RunState state, Metrics metrics) {
@@ -26,16 +28,17 @@ final class LoadEngine {
         this.admin = admin.withTimeout(2, SECONDS);
         this.state = state;
         this.metrics = metrics;
+        sampleJournal = config.scenario().equals("write-heavy");
     }
 
     void run(Scenario scenario) throws InterruptedException {
         var running = new AtomicBoolean(true);
         var failure = new AtomicReference<RuntimeException>();
-        sampleCache();
+        sampleStorage();
         try (var clients = Executors.newVirtualThreadPerTaskExecutor();
              var sampler = Executors.newSingleThreadScheduledExecutor()) {
             try {
-                sampler.scheduleAtFixedRate(this::sampleCache, 1, 1, SECONDS);
+                sampler.scheduleAtFixedRate(this::sampleStorage, 1, 1, SECONDS);
                 metrics.loadStarted();
                 state.phase(config.integer("warmupSec") > 0 ? RunState.Phase.WARMUP : RunState.Phase.LOAD);
                 for (int i = 0; i < config.integer("clients"); i++) {
@@ -65,6 +68,9 @@ final class LoadEngine {
         }
         state.throwIfCancelled();
         throwIfFailed(failure);
+        if (sampleJournal) {
+            sampleStorage();
+        }
     }
 
     private void phase(RunState.Phase phase, int seconds, AtomicReference<RuntimeException> failure)
@@ -90,13 +96,20 @@ final class LoadEngine {
         }
     }
 
-    private void sampleCache() {
+    private void sampleStorage() {
         try {
             var result = admin.runCommand(new Document("serverStatus", 1));
             var cache = result.getEmbedded(List.of("wiredTiger", "cache"), Document.class);
             long pagesRead = cache.get("pages read into cache", Number.class).longValue();
             metrics.cache(cache, previousPagesRead < 0 ? 0 : Math.max(0, pagesRead - previousPagesRead));
             previousPagesRead = pagesRead;
+            if (sampleJournal) {
+                long bytes = result.getEmbedded(List.of("wiredTiger", "log", "log bytes written"), Number.class).longValue();
+                if (previousJournalBytes >= 0) {
+                    metrics.journalWritten(Math.max(0, bytes - previousJournalBytes));
+                }
+                previousJournalBytes = bytes;
+            }
         } catch (MongoException error) {
             if (!samplingFailed) {
                 Log.warn("Не удалось опросить WiredTiger, код " + error.getCode());

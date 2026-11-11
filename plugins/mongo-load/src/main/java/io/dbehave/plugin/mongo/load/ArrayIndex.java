@@ -47,7 +47,7 @@ final class ArrayIndex implements Scenario {
         var random = new Random(index);
         var collection = orders.withTimeout(10, SECONDS);
         return () -> metrics.measure("lookup", () -> {
-            try (var cursor = collection.find(eq("items.sku", random.nextInt(SEARCH_SKUS)))
+            try (var cursor = collection.find(eq("items.sku", sku(random.nextInt(SEARCH_SKUS))))
                     .projection(include("_id")).iterator()) {
                 while (cursor.hasNext()) {
                     cursor.next();
@@ -58,7 +58,7 @@ final class ArrayIndex implements Scenario {
 
     @Override
     public void verify(MongoDatabase admin) {
-        var result = orders.find(eq("items.sku", 0)).projection(include("_id")).explain(EXECUTION_STATS);
+        var result = orders.find(eq("items.sku", sku(0))).projection(include("_id")).explain(EXECUTION_STATS);
         metrics.arrayExplain(result.get("executionStats", Document.class));
         metrics.storage("orders", Data.storageStats(admin, orders));
     }
@@ -67,12 +67,16 @@ final class ArrayIndex implements Scenario {
         var items = new ArrayList<Document>(itemsPerOrder);
         // Доля заказов с каждым поисковым SKU не зависит от длины массива.
         if (id % MATCH_INTERVAL == 0) {
-            items.add(new Document("sku", id / MATCH_INTERVAL % SEARCH_SKUS).append("quantity", 1));
+            items.add(new Document("sku", sku(id / MATCH_INTERVAL % SEARCH_SKUS)).append("quantity", 1));
         }
         for (int i = items.size(); i < itemsPerOrder; i++) {
-            int sku = SEARCH_SKUS + (id * 101 + i) % 65_536;
-            items.add(new Document("sku", sku).append("quantity", 1));
+            int number = SEARCH_SKUS + (id * 101 + i) % 65_536;
+            items.add(new Document("sku", sku(number)).append("quantity", 1));
         }
         return new Document("_id", id).append("items", items);
+    }
+
+    private static String sku(int number) {
+        return "catalog/electronics/components/accessories/sku-" + number;
     }
 }

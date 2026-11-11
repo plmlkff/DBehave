@@ -70,6 +70,8 @@ public final class MongoContextCollector implements ContextCollector {
                     command.add("--wiredTigerCacheSizeGB=" + gibibytes.toPlainString());
                 }
                 case "blockCompressor" -> command.add("--wiredTigerCollectionBlockCompressor=" + argument);
+                case "journalCompressor" -> command.add("--wiredTigerJournalCompressor=" + argument);
+                case "prefixCompression" -> command.add("--wiredTigerIndexPrefixCompression=" + argument);
                 case "allowDiskUse", "journalAcknowledged" -> { }
                 default -> throw new IllegalArgumentException("Неизвестная настройка MongoDB: " + key);
             }
