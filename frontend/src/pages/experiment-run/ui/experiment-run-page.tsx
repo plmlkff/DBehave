@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router'
-import { experimentStateLabel, isExperimentFinished, useExperimentRun } from '@/entities/experiment'
+import { experimentStateLabel, getExperimentGrafanaUrl, isExperimentFinished, useExperimentRun } from '@/entities/experiment'
 import { routes } from '@/shared/config/routes'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -19,7 +19,8 @@ export function ExperimentRunPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { run, error, loading, retry } = useExperimentRun(id)
-  const chartUrl = run?.grafanaUrl ? grafanaEmbedUrl(run.grafanaUrl) : null
+  const grafanaUrl = run ? getExperimentGrafanaUrl(run) : null
+  const chartUrl = grafanaUrl ? grafanaEmbedUrl(grafanaUrl) : null
 
   return (
     <div className={styles.page}>
@@ -64,7 +65,7 @@ export function ExperimentRunPage() {
           <RunConfiguration configuration={run.configuration} />
           <Panel aria-labelledby="run-charts-title">
             <h2 id="run-charts-title" className={styles.sectionTitle}>Графики</h2>
-            {run.grafanaUrl && chartUrl ? (
+            {grafanaUrl && chartUrl ? (
               <>
                 <iframe
                   className={styles.grafanaFrame}
@@ -73,7 +74,7 @@ export function ExperimentRunPage() {
                   loading="lazy"
                   allow="fullscreen"
                 />
-                <a className={styles.grafanaLink} href={run.grafanaUrl} target="_blank" rel="noopener noreferrer">
+                <a className={styles.grafanaLink} href={grafanaUrl} target="_blank" rel="noopener noreferrer">
                   Открыть Grafana отдельно <ExternalLink size={16} aria-hidden="true" />
                 </a>
               </>
