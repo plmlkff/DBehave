@@ -1,4 +1,4 @@
-package io.dbehave.plugin.postgres.load;
+package io.dbehave.plugin.load;
 
 /** Состояние нагрузчика, которое отдаёт {@code /health} и дублируют метрики фазы и прогресса. */
 public final class RunState {
@@ -6,13 +6,13 @@ public final class RunState {
 
     public enum Phase { STARTING, PREPARING, WARMUP, LOAD, VERIFYING, DONE, FAILED }
 
-    private final Metrics metrics;
+    private final LoadMetrics metrics;
     private volatile Phase phase = Phase.STARTING;
     private volatile int progress;
     private volatile String error;
     private volatile boolean cancelled;
 
-    public RunState(Metrics metrics) {
+    public RunState(LoadMetrics metrics) {
         this.metrics = metrics;
         metrics.phase(phase);
     }

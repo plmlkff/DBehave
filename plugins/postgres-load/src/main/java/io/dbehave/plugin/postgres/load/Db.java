@@ -1,5 +1,8 @@
 package io.dbehave.plugin.postgres.load;
 
+import io.dbehave.plugin.load.Log;
+import io.dbehave.plugin.load.RunState;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;

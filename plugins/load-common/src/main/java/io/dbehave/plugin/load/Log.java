@@ -1,4 +1,4 @@
-package io.dbehave.plugin.postgres.load;
+package io.dbehave.plugin.load;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;

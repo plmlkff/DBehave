@@ -1,5 +1,7 @@
 package io.dbehave.plugin.postgres.load.scenario;
 
+import io.dbehave.plugin.load.RunState;
+
 import java.sql.SQLException;
 
 /**

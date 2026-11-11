@@ -1,5 +1,8 @@
 package io.dbehave.plugin.postgres.load;
 
+import io.dbehave.plugin.load.HttpEndpoints;
+import io.dbehave.plugin.load.Log;
+import io.dbehave.plugin.load.RunState;
 import io.dbehave.plugin.postgres.load.scenario.Scenario;
 import io.dbehave.plugin.postgres.load.scenario.Scenarios;
 
@@ -105,7 +108,9 @@ public final class Main {
         String params = config.loadParams().entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining(", "));
-        metrics.runInfo(config.scenario(), settings.isEmpty() ? "по умолчанию" : settings, params);
+        String changedSettings = settings.isEmpty() ? "по умолчанию" : settings;
+        metrics.runInfo(config.scenario(), changedSettings, params);
+        Log.info("Изменённые настройки PostgreSQL: " + changedSettings);
     }
 
     private static String describe(Throwable e) {

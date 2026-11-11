@@ -1,2 +1,3 @@
 rootProject.name = 'dbehave'
 include 'backend', 'plugin-api', 'plugins:postgres', 'plugins:postgres-load', 'plugins:mongo'
+include 'plugins:load-common'
