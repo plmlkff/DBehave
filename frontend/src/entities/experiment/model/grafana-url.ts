@@ -28,3 +28,17 @@ export function getExperimentGrafanaUrl(run: GrafanaRun) {
     return null
   }
 }
+
+export function getExperimentComparisonGrafanaUrl(value: string, runs: readonly GrafanaRun[]) {
+  if (runs.length < 2) return null
+  const starts = runs.map(run => Date.parse(run.createdAt))
+  const ends = runs.map(run => Date.parse(run.updatedAt))
+  if (![...starts, ...ends].every(Number.isFinite)) return null
+
+  return getExperimentGrafanaUrl({
+    grafanaUrl: value,
+    createdAt: new Date(Math.min(...starts)).toISOString(),
+    updatedAt: new Date(Math.max(...ends)).toISOString(),
+    state: runs.every(run => isExperimentFinished(run.state)) ? 'SUCCEEDED' : 'RUNNING',
+  })
+}

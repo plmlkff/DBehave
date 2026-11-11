@@ -8,6 +8,12 @@
 .selectionBar p { color: var(--color-text-muted); font-size: 13px; line-height: 22px; }
 .selectAll { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; line-height: 22px; cursor: pointer; }
 .selectAll .checkbox { margin: 0; }
+.comparisonPanel { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-5); }
+.comparisonSummary { flex: 1; min-width: 0; }
+.comparisonSummary h2 { font-size: 16px; font-weight: 600; line-height: 24px; }
+.comparisonHint { margin-top: var(--space-2); color: var(--color-text-muted); font-size: 13px; line-height: 22px; }
+.comparisonHint[data-error='true'] { color: var(--color-danger); }
+.comparisonIds { margin-top: var(--space-2); color: var(--color-text-subtle); font-family: var(--font-mono); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .deleteDialog { width: min(520px, calc(100% - 32px)); margin: auto; padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); box-shadow: 0 24px 80px #0008; }
 .deleteDialog::backdrop { background: #0009; }
 .deleteDialog h2 { font-size: 18px; font-weight: 600; line-height: 26px; }

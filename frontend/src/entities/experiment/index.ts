@@ -1,9 +1,11 @@
 export {
   getScenarios, getExperimentScreen, validateExperiment, createExperiment, getExperiment, getExperiments,
-  deleteExperiment, deleteExperiments,
+  deleteExperiment, deleteExperiments, compareExperiments,
 } from './api/experiment-api'
 export { buildExperimentRequest, createInitialValues } from './model/form-values'
 export { useExperimentRun, useExperimentHistory } from './model/use-experiment-runs'
+export { useExperimentComparison } from './model/use-experiment-comparison'
 export { isExperimentFinished, experimentStateLabel } from './model/run-state'
-export { getExperimentGrafanaUrl } from './model/grafana-url'
-export type { ExperimentRequest, ExperimentRun, ExperimentScreen, ScenarioSummary, ValidationResult } from './model/types'
+export { getExperimentGrafanaUrl, getExperimentComparisonGrafanaUrl } from './model/grafana-url'
+export { getExperimentComparisonError } from './model/comparison'
+export type { ExperimentComparison, ExperimentRequest, ExperimentRun, ExperimentScreen, ScenarioSummary, ValidationResult } from './model/types'
