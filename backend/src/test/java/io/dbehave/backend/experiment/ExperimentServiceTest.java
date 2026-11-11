@@ -5,7 +5,11 @@ import io.dbehave.backend.plugin.PluginRepository;
 import io.dbehave.backend.task.ExecutionContext;
 import io.dbehave.backend.task.TaskRepository;
 import io.dbehave.backend.task.WorkerTask;
+import io.dbehave.backend.validation.JsonbValidation;
+import io.dbehave.backend.validation.InvalidExperimentException;
+import io.dbehave.plugin.FieldSpec;
 import io.dbehave.plugin.PluginDefinition;
+import io.dbehave.plugin.Scenario;
 import io.dbehave.plugin.postgres.PostgresContextCollector;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,14 +18,53 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ExperimentServiceTest {
+    @Test
+    void rejectsExtremePostgresNumbersBeforeTheCollectorCanExpandThem() {
+        var definition = postgresWithUnboundedNumbers(BigDecimal.ONE);
+        var repository = mock(PluginRepository.class);
+        when(repository.findById(definition.id())).thenReturn(Optional.of(definition));
+        var collector = spy(new PostgresContextCollector());
+        var jsonb = new JsonbValidation(JsonMapper.builder().build());
+        var registry = new PluginRegistry(repository, List.of(collector), jsonb);
+        var tasks = mock(TaskRepository.class);
+        var service = new ExperimentService(registry, tasks, jsonb);
+        clearInvocations(collector);
+
+        var huge = new BigDecimal("1e1000000");
+        for (var request : List.of(
+                new ExperimentRequest(definition.id(), "custom", Map.of("extension.limit", huge), Map.of()),
+                new ExperimentRequest(definition.id(), "custom", Map.of(), Map.of("customParam", huge)))) {
+            assertThatThrownBy(() -> service.prepare(request)).isInstanceOf(InvalidExperimentException.class);
+        }
+        verifyNoInteractions(collector, tasks);
+    }
+
+    @Test
+    void rejectsExtremePostgresDefaultsBeforeRegistrationCallsTheCollector() {
+        var repository = mock(PluginRepository.class);
+        var collector = spy(new PostgresContextCollector());
+        var registry = new PluginRegistry(repository, List.of(collector),
+                new JsonbValidation(JsonMapper.builder().build()));
+        clearInvocations(collector);
+
+        assertThatThrownBy(() -> registry.create(postgresWithUnboundedNumbers(new BigDecimal("1e1000000"))))
+                .isInstanceOf(InvalidExperimentException.class);
+        verifyNoInteractions(collector, repository);
+    }
+
     @Test
     void savesDisplayMetadataFromTheSameCatalogSnapshotAsTheExecutionContext() {
         var original = PostgresContextCollector.defaultDefinition();
@@ -34,7 +77,7 @@ class ExperimentServiceTest {
         when(tasks.insert(any(UUID.class), any(ExecutionContext.class))).thenAnswer(invocation -> new WorkerTask(
                 invocation.getArgument(0), "QUEUED", Instant.EPOCH, Instant.EPOCH,
                 invocation.getArgument(1), null, null, null));
-        var service = new ExperimentService(new PluginRegistry(repository, List.of(new PostgresContextCollector())), tasks);
+        var service = new ExperimentService(new PluginRegistry(repository, List.of(new PostgresContextCollector()), mock(JsonbValidation.class)), tasks, mock(JsonbValidation.class));
 
         var created = service.start(new ExperimentRequest("postgres", "mixed", null, null));
 
@@ -50,7 +93,7 @@ class ExperimentServiceTest {
     @Test
     void mapsDefaultsAndOverridesToSeparateContainers() {
         var registry = registry();
-        var service = new ExperimentService(registry, mock(TaskRepository.class));
+        var service = new ExperimentService(registry, mock(TaskRepository.class), mock(JsonbValidation.class));
 
         var plan = service.prepare(new ExperimentRequest(
                 "postgres", "mixed", Map.of("shared_buffers", 128), Map.of("datasetRows", 100_000))).context();
@@ -69,7 +112,7 @@ class ExperimentServiceTest {
     @Test
     void mapsReadHeavyConfigurationToItsContainers() {
         var registry = registry();
-        var service = new ExperimentService(registry, mock(TaskRepository.class));
+        var service = new ExperimentService(registry, mock(TaskRepository.class), mock(JsonbValidation.class));
 
         var plan = service.prepare(new ExperimentRequest(
                 "postgres", "read-heavy", Map.of("random_page_cost", new BigDecimal("1.25")),
@@ -86,7 +129,7 @@ class ExperimentServiceTest {
 
     @Test
     void mapsWriteHeavyConfigurationToItsContainers() {
-        var service = new ExperimentService(registry(), mock(TaskRepository.class));
+        var service = new ExperimentService(registry(), mock(TaskRepository.class), mock(JsonbValidation.class));
         var plan = service.prepare(new ExperimentRequest(
                 "postgres", "write-heavy", Map.of("synchronous_commit", "off"), Map.of("batchSize", 100))).context();
 
@@ -102,7 +145,7 @@ class ExperimentServiceTest {
 
     @Test
     void mapsLockConfigurationToItsContainers() {
-        var service = new ExperimentService(registry(), mock(TaskRepository.class));
+        var service = new ExperimentService(registry(), mock(TaskRepository.class), mock(JsonbValidation.class));
         var plan = service.prepare(new ExperimentRequest(
                 "postgres", "long-tx-locks", Map.of("lock_timeout", 500), Map.of("blockerMode", "active"))).context();
 
@@ -116,7 +159,7 @@ class ExperimentServiceTest {
 
     @Test
     void passesIsolationLevelToTheLoadGenerator() {
-        var service = new ExperimentService(registry(), mock(TaskRepository.class));
+        var service = new ExperimentService(registry(), mock(TaskRepository.class), mock(JsonbValidation.class));
         var plan = service.prepare(new ExperimentRequest(
                 "postgres", "isolation", Map.of(), Map.of("isolationLevel", "REPEATABLE READ"))).context();
 
@@ -130,7 +173,18 @@ class ExperimentServiceTest {
     private static PluginRegistry registry() {
         var repository = mock(PluginRepository.class);
         when(repository.findById("postgres")).thenReturn(Optional.of(PostgresContextCollector.defaultDefinition()));
-        return new PluginRegistry(repository, List.of(new PostgresContextCollector()));
+        return new PluginRegistry(repository, List.of(new PostgresContextCollector()), mock(JsonbValidation.class));
+    }
+
+    private static PluginDefinition postgresWithUnboundedNumbers(BigDecimal defaultValue) {
+        var base = PostgresContextCollector.defaultDefinition();
+        var setting = new FieldSpec("extension.limit", "Limit", "", FieldSpec.Type.NUMBER,
+                defaultValue, null, null, null, List.of());
+        var parameter = new FieldSpec("customParam", "Parameter", "", FieldSpec.Type.NUMBER,
+                defaultValue, null, null, null, List.of());
+        return new PluginDefinition("custom", "Custom", base.collectorId(), base.loaderImageName(),
+                base.databaseImageName(), base.grafanaUrlTemplate(), Map.of(), Map.of(),
+                List.of(new Scenario("custom", "Custom", "", List.of(setting), List.of(parameter))));
     }
 
     @SuppressWarnings("unchecked")

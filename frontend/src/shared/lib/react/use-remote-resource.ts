@@ -43,8 +43,11 @@ export function useRemoteResource<T>(key: string, load: (signal: AbortSignal) =>
           data: current?.key === key && current.attempt === attempt ? current.data : undefined,
           error: message,
         }))
-        const permanent = error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 429
-        if (intervalMs > 0 && !permanent) {
+        const isPermanentError = error instanceof ApiError
+          && error.status >= 400
+          && error.status < 500
+          && error.status !== 429
+        if (intervalMs > 0 && !isPermanentError) {
           timer = setTimeout(refresh, Math.max(intervalMs, 5000))
         }
       }

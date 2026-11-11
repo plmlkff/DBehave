@@ -48,6 +48,19 @@ class PluginValidationTest {
     }
 
     @Test
+    void rejectsOnlyTheTwoPathSegmentIdsThatBrowsersNormalize() {
+        var original = plugin("https://grafana.example.test/{runId}", List.of(scenario("custom", List.of())), Map.of());
+        for (String id : List.of(".", "..")) {
+            var definition = withId(original, id);
+            var failure = catchThrowableOfType(() -> PluginValidation.validate(definition), InvalidExperimentException.class);
+            assertThat(failure.fieldErrors()).extracting(FieldError::field).containsExactly("id");
+        }
+        for (String id : List.of("...", ".custom", "custom..name", "_custom", "-custom")) {
+            assertThatCode(() -> PluginValidation.validate(withId(original, id))).doesNotThrowAnyException();
+        }
+    }
+
+    @Test
     void rejectsAmbiguousSchemasAndInvalidDefaultsBeforeTheyReachUsers() {
         var inverted = new FieldSpec("count", "Count", "", FieldSpec.Type.INTEGER,
                 5, BigDecimal.TEN, BigDecimal.ONE, null, List.of());
@@ -69,5 +82,11 @@ class PluginValidationTest {
     private static PluginDefinition plugin(String grafana, List<Scenario> scenarios, Map<String, Object> context) {
         return new PluginDefinition("custom", "Custom", "generic", "example/load:1",
                 "example/database:1", grafana, context, Map.of(), scenarios);
+    }
+
+    private static PluginDefinition withId(PluginDefinition original, String id) {
+        return new PluginDefinition(id, original.title(), original.collectorId(), original.loaderImageName(),
+                original.databaseImageName(), original.grafanaUrlTemplate(), original.loaderImageContext(),
+                original.databaseImageContext(), original.scenarios());
     }
 }

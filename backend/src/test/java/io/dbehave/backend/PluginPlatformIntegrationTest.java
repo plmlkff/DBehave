@@ -4,6 +4,7 @@ import io.dbehave.backend.experiment.ExperimentRequest;
 import io.dbehave.backend.experiment.ExperimentService;
 import io.dbehave.backend.task.ExecutionContext;
 import io.dbehave.backend.task.TaskRepository;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -577,6 +578,110 @@ class PluginPlatformIntegrationTest {
         assertThat(taskCount()).isEqualTo(countBefore);
     }
 
+    @Test
+    void rejectsJsonbIncompatibleCpuLimitsDuringBothValidationAndLaunch() throws Exception {
+        var plugin = genericPlugin();
+        register(plugin);
+        for (String value : List.of("1e1000000", "1e-1000000", "1e1000")) {
+            assertRejectedBeforeQueue(Map.of("pluginId", plugin.get("id"), "scenarioId", "custom-scenario",
+                    "loaderImageContext", Map.of("core_max", new BigDecimal(value))));
+        }
+    }
+
+    @Test
+    void rejectsJsonbIncompatibleGenericNumbersAndStringsBeforeQueueing() throws Exception {
+        var numbers = genericPluginWithParameter("NUMBER", 1);
+        register(numbers);
+        for (String value : List.of("1e1000000", "1e-1000000", "1e1000")) {
+            assertRejectedBeforeQueue(Map.of("pluginId", numbers.get("id"), "scenarioId", "custom-scenario",
+                    "params", Map.of("value", new BigDecimal(value))));
+        }
+        var strings = genericPluginWithParameter("STRING", "safe");
+        register(strings);
+        assertRejectedBeforeQueue(Map.of("pluginId", strings.get("id"), "scenarioId", "custom-scenario",
+                "params", Map.of("value", "before\0after")));
+
+        var postgres = genericPluginWithParameter("NUMBER", 1);
+        postgres.put("collectorId", "postgres");
+        register(postgres);
+        assertRejectedBeforeQueue(Map.of("pluginId", postgres.get("id"), "scenarioId", "custom-scenario",
+                "params", Map.of("value", new BigDecimal("1e1000000"))));
+    }
+
+    @Test
+    void rejectsInvalidCatalogTextNumbersAndPathSegmentIdsWithoutSavingRows() throws Exception {
+        for (String invalid : List.of(".", "..", "title", "key", "number")) {
+            var plugin = genericPlugin();
+            switch (invalid) {
+                case ".", ".." -> plugin.put("id", invalid);
+                case "title" -> plugin.put("title", "invalid\0title");
+                case "key" -> plugin.put("databaseImageContext", Map.of("invalid\0key", "value"));
+                case "number" -> plugin.put("databaseImageContext", Map.of("number", new BigDecimal("1e1000")));
+                default -> throw new AssertionError(invalid);
+            }
+            mvc.perform(post("/api/plugins").contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(plugin)))
+                    .andExpect(status().isBadRequest());
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.plugins WHERE id = ?", Long.class,
+                    plugin.get("id"))).isZero();
+        }
+    }
+
+    @Test
+    void rejectsInvalidCatalogUpdateWithoutReplacingTheSavedDefinition() throws Exception {
+        var plugin = genericPlugin();
+        register(plugin);
+        String saved = jdbc.queryForObject("SELECT definition::text FROM dbehave.plugins WHERE id = ?",
+                String.class, plugin.get("id"));
+        plugin.put("title", "invalid\0title");
+        mvc.perform(put("/api/plugins/{id}", plugin.get("id")).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(plugin)))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT definition::text FROM dbehave.plugins WHERE id = ?",
+                String.class, plugin.get("id"))).isEqualTo(saved);
+    }
+
+    @Test
+    void rejectsMalformedUnicodeKeysWithASerializableValidationError() throws Exception {
+        var plugin = genericPlugin();
+        plugin.put("databaseImageContext", Map.of("invalid_key_marker", "\0"));
+        String body = json.writeValueAsString(plugin).replace("invalid_key_marker", "\\uD800");
+        mvc.perform(post("/api/plugins").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.plugins WHERE id = ?", Long.class,
+                plugin.get("id"))).isZero();
+    }
+
+    @Test
+    void rejectsZeroOperationWeightsAndMalformedLoaderCommands() throws Exception {
+        assertRejectedBeforeQueue(Map.of("pluginId", "postgres", "scenarioId", "mixed",
+                "params", Map.of("readWeight", 0, "updateWeight", 0, "insertWeight", 0)));
+        assertRejectedBeforeQueue(Map.of("pluginId", "postgres", "scenarioId", "read-heavy",
+                "params", Map.of("pointWeight", 0, "rangeWeight", 0, "reportWeight", 0)));
+        for (Object command : List.of("not-an-array", List.of(123))) {
+            var plugin = postgresPlugin();
+            plugin.put("loaderImageContext", Map.of("command", command));
+            mvc.perform(post("/api/plugins").contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(plugin)))
+                    .andExpect(status().isBadRequest());
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.plugins WHERE id = ?", Long.class,
+                    plugin.get("id"))).isZero();
+        }
+    }
+
+    private void assertRejectedBeforeQueue(Map<String, Object> request) throws Exception {
+        long tasksBefore = taskCount();
+        long metadataBefore = jdbc.queryForObject("SELECT count(*) FROM dbehave.experiments", Long.class);
+        for (String path : List.of("/api/experiments/validate", "/api/experiments")) {
+            mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(taskCount()).isEqualTo(tasksBefore);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.experiments", Long.class)).isEqualTo(metadataBefore);
+    }
+
     private void register(Map<String, Object> plugin) throws Exception {
         mvc.perform(post("/api/plugins").contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(plugin)))
@@ -629,6 +734,16 @@ class PluginPlatformIntegrationTest {
                 "settings", List.of(integerField("cacheSize", 64, 1, 1024)),
                 "params", List.of(integerField("rps", 100, 1, 10000)))));
         return definition;
+    }
+
+    private static Map<String, Object> genericPluginWithParameter(String type, Object defaultValue) {
+        var plugin = genericPlugin();
+        plugin.put("scenarios", List.of(Map.of(
+                "id", "custom-scenario", "title", "Custom scenario", "description", "Generic parameter",
+                "settings", List.of(), "params", List.of(Map.of(
+                        "key", "value", "title", "Value", "type", type, "defaultValue", defaultValue,
+                        "options", List.of())))));
+        return plugin;
     }
 
     private static Map<String, Object> integerField(String key, int defaultValue, int min, int max) {

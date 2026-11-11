@@ -78,7 +78,8 @@ public final class InputValidation {
             boolean valid = false;
             try {
                 if (key.equals("core_max") && value instanceof Number number) {
-                    valid = new BigDecimal(number.toString()).signum() > 0;
+                    double cores = number.doubleValue();
+                    valid = Double.isFinite(cores) && cores > 0;
                 } else if (key.equals("mem_max") && isInteger(value)) {
                     var bytes = new BigInteger(value.toString());
                     valid = bytes.signum() > 0 && bytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0;

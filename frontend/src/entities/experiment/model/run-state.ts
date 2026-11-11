@@ -13,7 +13,7 @@ const stateLabels: Record<string, string> = {
 const finishedStates = new Set(['SUCCEEDED', 'DONE', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELED'])
 
 export function experimentStateLabel(state: string) {
-  return stateLabels[state] ?? state
+  return Object.hasOwn(stateLabels, state) ? stateLabels[state] : state
 }
 
 export function isExperimentFinished(state: string) {

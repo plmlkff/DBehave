@@ -20,7 +20,9 @@ const sectionTitles = {
 
 function getServerFieldErrors(error: ApiError): FieldErrors {
   const body = error.body
-  if (!body || typeof body !== 'object' || !('fieldErrors' in body) || !Array.isArray(body.fieldErrors)) return {}
+  if (!body || typeof body !== 'object' || !('fieldErrors' in body) || !Array.isArray(body.fieldErrors)) {
+    return {}
+  }
   return Object.fromEntries(body.fieldErrors.flatMap(item =>
     item && typeof item.field === 'string' && typeof item.message === 'string'
       ? [[item.field, item.message]] : [],
@@ -80,12 +82,24 @@ export function ExperimentConfigForm({ screen }: { screen: ExperimentScreen }) {
       if (controller.signal.aborted) return
       if (error instanceof ApiError) {
         const fieldErrors = getServerFieldErrors(error)
+        const hasFieldErrors = Object.keys(fieldErrors).length > 0
+        const fieldNames = new Set(screen.form.sections.flatMap(section => section.fields.map(field => field.name)))
+        const generalErrors = Object.entries(fieldErrors)
+          .filter(([name]) => !fieldNames.has(name))
+          .map(([, message]) => message)
+        let message = `Не удалось запустить эксперимент (HTTP ${error.status}).`
+        if (hasFieldErrors) message = 'Сервер отклонил значения. Проверьте выделенные поля.'
+        if (generalErrors.length > 0) message = generalErrors.join(' ')
         showErrors(fieldErrors)
-        setFeedback({ message: Object.keys(fieldErrors).length
-          ? 'Сервер отклонил значения. Проверьте выделенные поля.'
-          : `Не удалось запустить эксперимент (HTTP ${error.status}).`, checkHistory: error.status >= 500 })
+        setFeedback({
+          message,
+          checkHistory: error.status >= 500,
+        })
       } else {
-        setFeedback({ message: 'Не удалось получить подтверждение запуска. Проверьте историю перед повторной отправкой.', checkHistory: true })
+        setFeedback({
+          message: 'Не удалось получить подтверждение запуска. Проверьте историю перед повторной отправкой.',
+          checkHistory: true,
+        })
       }
     } finally {
       if (requestRef.current === controller) requestRef.current = null
@@ -96,10 +110,9 @@ export function ExperimentConfigForm({ screen }: { screen: ExperimentScreen }) {
   return (
     <form ref={formRef} className={styles.form} onSubmit={submit} noValidate>
       <div className={styles.sections}>
-        {screen.form.sections.map((section, index) => (
+        {screen.form.sections.map(section => (
           <Panel key={section.id} aria-labelledby={`section-${section.id}`}>
             <h2 id={`section-${section.id}`} className={styles.sectionTitle}>
-              <span aria-hidden="true">{String(index + 2).padStart(2, '0')}</span>
               {sectionTitles[section.id]}
             </h2>
             <fieldset className={styles.fields} disabled={pending}>

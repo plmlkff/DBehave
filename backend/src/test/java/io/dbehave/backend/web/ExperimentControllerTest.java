@@ -6,6 +6,7 @@ import io.dbehave.backend.experiment.ExperimentService;
 import io.dbehave.backend.plugin.PluginRegistry;
 import io.dbehave.backend.plugin.PluginRepository;
 import io.dbehave.backend.task.TaskRepository;
+import io.dbehave.backend.validation.JsonbValidation;
 import io.dbehave.plugin.postgres.PostgresContextCollector;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ExperimentController.class)
-@Import({PluginRegistry.class, PluginConfiguration.class, ExperimentService.class, JsonConfiguration.class})
+@Import({PluginRegistry.class, PluginConfiguration.class, ExperimentService.class, JsonConfiguration.class, JsonbValidation.class})
 class ExperimentControllerTest {
     @Autowired
     private MockMvc mvc;

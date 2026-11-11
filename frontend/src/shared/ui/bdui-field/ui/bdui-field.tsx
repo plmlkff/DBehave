@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FieldSpec, FieldValue } from '@/shared/lib/bdui'
 import { Select } from '@/shared/ui/select'
+import { stepNumber } from './number-step'
 import styles from './bdui-field.module.css'
 
 type BduiFieldProps = {
@@ -21,16 +22,8 @@ export function BduiField({ field, value, error, disabled = false, onChange }: B
   const hasNumber = value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(numericValue)
 
   function changeNumber(direction: 1 | -1) {
-    // NUMBER допускает произвольный ввод; шаг кнопок — 0.1, INTEGER — 1.
-    const step = field.type === 'INTEGER' ? 1 : 0.1
-    let next = Number(((hasNumber ? numericValue : 0) + direction * step).toPrecision(15))
-    if (field.min !== null && field.minExclusive && next <= field.min) {
-      if (hasNumber && numericValue > field.min) return
-      next = field.min + step
-    }
-    if (field.min !== null) next = Math.max(field.min, next)
-    if (field.max !== null) next = Math.min(field.max, next)
-    onChange(String(next))
+    const next = stepNumber(field, hasNumber ? numericValue : null, direction)
+    if (next !== null) onChange(String(next))
   }
 
   const accessibility = {

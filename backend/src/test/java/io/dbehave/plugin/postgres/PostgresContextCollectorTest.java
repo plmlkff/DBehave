@@ -5,6 +5,7 @@ import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -191,6 +192,68 @@ class PostgresContextCollectorTest {
         assertThat(baseCommand).containsExactly("postgres", "-c", "log_statement=all");
     }
 
+    @ParameterizedTest
+    @MethodSource("invalidLoaderCommands")
+    void rejectsMalformedLoaderCommand(Object configuredCommand) {
+        var scenario = new Scenario("invalid-loader-command", "Invalid loader command", "", List.of(), List.of());
+        var plugin = plugin(scenario, Map.of("command", configuredCommand), Map.of());
+
+        assertThatThrownBy(() -> collector.collect(plugin, scenario, Map.of(), Map.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("command");
+    }
+
+    @Test
+    void allowsExplicitEmptyLoaderCommand() {
+        var scenario = new Scenario("empty-loader-command", "Empty loader command", "", List.of(), List.of());
+
+        var contexts = collector.collect(plugin(scenario, Map.of("command", List.of()), Map.of()), scenario,
+                Map.of(), Map.of());
+
+        assertThat(contexts.loaderImageContext()).containsEntry("command", List.of());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"pointWeight, rangeWeight, reportWeight", "readWeight, updateWeight, insertWeight"})
+    void rejectsZeroOperationWeightGroupForAnyStoredScenario(String first, String second, String third) {
+        var scenario = new Scenario("stored-weight-group", "Stored weight group", "", List.of(), List.of(
+                integer(first, "First weight", "", 0, 0, 100, null),
+                integer(second, "Second weight", "", 0, 0, 100, null),
+                integer(third, "Third weight", "", 0, 0, 100, null)));
+
+        assertThatThrownBy(() -> collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
+                Map.of(), Map.of(first, 0, second, 0, third, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Сумма весов операций должна быть больше нуля");
+    }
+
+    @Test
+    void allowsWeightGroupWithAtLeastOneEnabledOperation() {
+        var scenario = new Scenario("one-operation", "One operation", "", List.of(), List.of(
+                integer("readWeight", "Read", "", 1, 0, 100, null),
+                integer("updateWeight", "Update", "", 0, 0, 100, null),
+                integer("insertWeight", "Insert", "", 0, 0, 100, null)));
+
+        var contexts = collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
+                Map.of(), Map.of("readWeight", 1, "updateWeight", 0, "insertWeight", 0));
+
+        assertThat(environment(contexts.loaderImageContext()))
+                .containsEntry("READ_WEIGHT", "1")
+                .containsEntry("UPDATE_WEIGHT", "0")
+                .containsEntry("INSERT_WEIGHT", "0");
+    }
+
+    @Test
+    void allowsZeroWeightInCustomScenarioWithoutCompleteKnownWeightGroup() {
+        var scenario = new Scenario("custom-partial-group", "Custom partial group", "", List.of(), List.of(
+                integer("pointWeight", "Custom weight", "", 0, 0, 100, null)));
+
+        var contexts = collector.collect(plugin(scenario, Map.of(), Map.of()), scenario,
+                Map.of(), Map.of("pointWeight", 0));
+
+        assertThat(environment(contexts.loaderImageContext())).containsEntry("POINT_WEIGHT", "0");
+    }
+
     @Test
     void rejectsSettingNamesThatCannotBePostgresConfigurationKeys() {
         var scenario = new Scenario("invalid-setting", "Invalid setting", "",
@@ -290,6 +353,10 @@ class PostgresContextCollectorTest {
 
     private static Stream<Scenario> upstreamScenarios() {
         return new PostgresPlugin().scenarios().stream();
+    }
+
+    private static Stream<Object> invalidLoaderCommands() {
+        return Stream.of("loader", List.of(42), List.of("loader", false));
     }
 
     @SuppressWarnings("unchecked")

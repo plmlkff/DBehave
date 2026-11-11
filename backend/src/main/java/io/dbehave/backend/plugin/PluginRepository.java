@@ -1,5 +1,6 @@
 package io.dbehave.backend.plugin;
 
+import io.dbehave.backend.validation.JsonbValidation;
 import io.dbehave.plugin.PluginDefinition;
 import java.util.List;
 import java.util.Optional;
@@ -11,10 +12,12 @@ import tools.jackson.databind.json.JsonMapper;
 public class PluginRepository {
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
+    private final JsonbValidation jsonb;
 
-    PluginRepository(JdbcTemplate jdbc, JsonMapper json) {
+    PluginRepository(JdbcTemplate jdbc, JsonMapper json, JsonbValidation jsonb) {
         this.jdbc = jdbc;
         this.json = json;
+        this.jsonb = jsonb;
     }
 
     public List<PluginDefinition> findAll() {
@@ -29,6 +32,7 @@ public class PluginRepository {
     }
 
     public boolean insert(PluginDefinition definition) {
+        jsonb.validate(definition, "plugin");
         return jdbc.update("""
                 INSERT INTO dbehave.plugins (id, definition)
                 VALUES (?, CAST(? AS jsonb))
@@ -37,6 +41,7 @@ public class PluginRepository {
     }
 
     public boolean update(PluginDefinition definition) {
+        jsonb.validate(definition, "plugin");
         return jdbc.update("""
                 UPDATE dbehave.plugins
                 SET definition = CAST(? AS jsonb)

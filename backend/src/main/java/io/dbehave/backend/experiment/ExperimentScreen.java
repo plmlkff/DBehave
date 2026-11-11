@@ -42,10 +42,16 @@ public record ExperimentScreen(
     public record Section(String id, List<Field> fields) {
         static Section resources(String id, Map<String, Object> context) {
             return new Section(id, List.of(
-                    new Field(id + ".core_max", "Лимит CPU", "Положительное число ядер (> 0); пустое поле — лимит не задан",
-                            FieldSpec.Type.NUMBER, context.get("core_max"), BigDecimal.ZERO, null, "ядра", List.of(), true),
-                    new Field(id + ".mem_max", "Лимит памяти", "Положительное целое число байт; пустое поле — лимит не задан",
-                            FieldSpec.Type.INTEGER, context.get("mem_max"), BigDecimal.ONE, BigDecimal.valueOf(Long.MAX_VALUE), "байт", List.of(), false)
+                    new Field(
+                            id + ".core_max", "Лимит CPU",
+                            "Положительное число ядер. Пустое поле использует настройку плагина.",
+                            FieldSpec.Type.NUMBER, context.get("core_max"),
+                            BigDecimal.ZERO, null, "ядра", List.of(), true),
+                    new Field(
+                            id + ".mem_max", "Лимит памяти",
+                            "Положительное целое число байт. Пустое поле использует настройку плагина.",
+                            FieldSpec.Type.INTEGER, context.get("mem_max"),
+                            BigDecimal.ONE, BigDecimal.valueOf(Long.MAX_VALUE), "байт", List.of(), false)
             ));
         }
 

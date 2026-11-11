@@ -1,6 +1,7 @@
 package io.dbehave.backend.validation;
 
 import io.dbehave.plugin.FieldSpec;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,7 +28,9 @@ class InputValidationTest {
 
     @Test
     void rejectsNonfiniteCpuAndMemoryOutsideTheSupportedIntegerRange() {
-        for (Object invalid : List.of(0, -0.5, Double.NaN, Double.POSITIVE_INFINITY, "2")) {
+        for (Object invalid : List.of(
+                0, -0.5, Double.NaN, Double.POSITIVE_INFINITY, "2",
+                new BigDecimal("1e1000000"), new BigDecimal("1e-1000000"))) {
             var errors = new ArrayList<FieldError>();
             InputValidation.resources("loader", Map.of(), Map.of("core_max", invalid), errors);
             assertThat(errors).extracting(FieldError::field).containsExactly("loader.core_max");

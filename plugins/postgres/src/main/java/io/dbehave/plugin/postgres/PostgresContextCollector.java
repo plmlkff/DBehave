@@ -28,12 +28,17 @@ public final class PostgresContextCollector implements ContextCollector {
             PluginDefinition plugin, Scenario scenario,
             Map<String, Object> settings, Map<String, Object> params
     ) {
+        validateWeights(params, List.of("pointWeight", "rangeWeight", "reportWeight"));
+        validateWeights(params, List.of("readWeight", "updateWeight", "insertWeight"));
         var database = new HashMap<>(plugin.databaseImageContext());
         var databaseEnvironment = environment(database);
         databaseEnvironment.putIfAbsent("POSTGRES_DB", PostgresPlugin.DATABASE_NAME);
         databaseEnvironment.putIfAbsent("POSTGRES_USER", PostgresPlugin.DATABASE_USER);
         databaseEnvironment.putIfAbsent("POSTGRES_PASSWORD", PostgresPlugin.DATABASE_PASSWORD);
-        var command = command(database);
+        var command = command(database, List.of("docker-entrypoint.sh", "postgres"));
+        if (command.isEmpty()) {
+            throw new IllegalArgumentException("PostgreSQL command must be a nonempty array of strings");
+        }
         var settingEnvironmentKeys = new HashSet<String>();
         for (var field : scenario.settings()) {
             String key = field.key();
@@ -43,11 +48,11 @@ public final class PostgresContextCollector implements ContextCollector {
             var setting = PgSettings.ALL.stream().filter(known -> known.key().equals(key)).findFirst()
                     .orElseGet(() -> new PgSetting(field, null));
             String value = setting.format(settings.get(key));
-            String environmentKey = "DBEHAVE_" + environmentKey(key);
-            if (!settingEnvironmentKeys.add(environmentKey)) {
-                throw new IllegalArgumentException("Duplicate database setting environment key: " + environmentKey);
+            String environmentName = "DBEHAVE_" + environmentKey(key);
+            if (!settingEnvironmentKeys.add(environmentName)) {
+                throw new IllegalArgumentException("Duplicate database setting environment key: " + environmentName);
             }
-            databaseEnvironment.put(environmentKey, value);
+            databaseEnvironment.put(environmentName, value);
             command.add("-c");
             command.add(key + "=" + value);
         }
@@ -60,28 +65,26 @@ public final class PostgresContextCollector implements ContextCollector {
         loaderEnvironment.put("DB_PORT", "5432");
         loaderEnvironment.put("DB_NAME", databaseEnvironment.get("POSTGRES_DB"));
         loaderEnvironment.put("DB_USER", databaseEnvironment.get("POSTGRES_USER"));
-        if (databaseEnvironment.containsKey("POSTGRES_PASSWORD")) {
-            loaderEnvironment.put("DB_PASSWORD", databaseEnvironment.get("POSTGRES_PASSWORD"));
-            loaderEnvironment.put("PGPASSWORD", databaseEnvironment.get("POSTGRES_PASSWORD"));
-        }
+        loaderEnvironment.put("DB_PASSWORD", databaseEnvironment.get("POSTGRES_PASSWORD"));
+        loaderEnvironment.put("PGPASSWORD", databaseEnvironment.get("POSTGRES_PASSWORD"));
         loaderEnvironment.putAll(environment(loader));
         loaderEnvironment.put("SCENARIO", scenario.id());
         var parameterEnvironmentKeys = new HashSet<String>();
         for (var field : scenario.params()) {
-            String environmentKey = environmentKey(field.key());
-            if (RESERVED_LOADER_ENVIRONMENT_KEYS.contains(environmentKey)) {
-                throw new IllegalArgumentException("Reserved loader environment key: " + environmentKey);
+            String environmentName = environmentKey(field.key());
+            if (RESERVED_LOADER_ENVIRONMENT_KEYS.contains(environmentName)) {
+                throw new IllegalArgumentException("Reserved loader environment key: " + environmentName);
             }
-            if (!parameterEnvironmentKeys.add(environmentKey)) {
-                throw new IllegalArgumentException("Duplicate parameter environment key: " + environmentKey);
+            if (!parameterEnvironmentKeys.add(environmentName)) {
+                throw new IllegalArgumentException("Duplicate parameter environment key: " + environmentName);
             }
             Object value = params.get(field.key());
             String formatted = value instanceof Number number
                     ? new BigDecimal(number.toString()).toPlainString() : value.toString();
-            loaderEnvironment.put(environmentKey, formatted);
+            loaderEnvironment.put(environmentName, formatted);
         }
         loader.put("environment", Map.copyOf(loaderEnvironment));
-        loader.putIfAbsent("command", List.of());
+        loader.put("command", List.copyOf(command(loader, List.of())));
         return new ImageContexts(loader, database);
     }
 
@@ -101,6 +104,19 @@ public final class PostgresContextCollector implements ContextCollector {
         return PostgresPlugin.environmentName(key).replaceAll("[^A-Za-z0-9_]", "_");
     }
 
+    private static void validateWeights(Map<String, Object> params, List<String> keys) {
+        if (!params.keySet().containsAll(keys)) {
+            return;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (String key : keys) {
+            total = total.add(new BigDecimal(params.get(key).toString()));
+        }
+        if (total.signum() <= 0) {
+            throw new IllegalArgumentException("Сумма весов операций должна быть больше нуля (" + String.join(", ", keys) + ")");
+        }
+    }
+
     private static Map<String, String> environment(Map<String, Object> context) {
         var result = new HashMap<String, String>();
         if (context.get("environment") instanceof Map<?, ?> configured) {
@@ -116,17 +132,17 @@ public final class PostgresContextCollector implements ContextCollector {
         return result;
     }
 
-    private static List<String> command(Map<String, Object> context) {
+    private static List<String> command(Map<String, Object> context, List<String> defaultCommand) {
         if (!context.containsKey("command")) {
-            return new ArrayList<>(List.of("docker-entrypoint.sh", "postgres"));
+            return new ArrayList<>(defaultCommand);
         }
-        if (!(context.get("command") instanceof List<?> configured) || configured.isEmpty()) {
-            throw new IllegalArgumentException("PostgreSQL command must be a nonempty array of strings");
+        if (!(context.get("command") instanceof List<?> configured)) {
+            throw new IllegalArgumentException("Container command must be an array of strings");
         }
         var result = new ArrayList<String>();
         for (Object value : configured) {
             if (!(value instanceof String text)) {
-                throw new IllegalArgumentException("PostgreSQL command must contain strings");
+                throw new IllegalArgumentException("Container command must contain strings");
             }
             result.add(text);
         }

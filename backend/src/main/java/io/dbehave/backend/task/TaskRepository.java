@@ -1,6 +1,7 @@
 package io.dbehave.backend.task;
 
 import io.dbehave.backend.experiment.ExperimentRun;
+import io.dbehave.backend.validation.JsonbValidation;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -24,13 +25,16 @@ public class TaskRepository {
 
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
+    private final JsonbValidation jsonb;
 
-    TaskRepository(JdbcTemplate jdbc, JsonMapper json) {
+    TaskRepository(JdbcTemplate jdbc, JsonMapper json, JsonbValidation jsonb) {
         this.jdbc = jdbc;
         this.json = json;
+        this.jsonb = jsonb;
     }
 
     public WorkerTask insert(UUID id, ExecutionContext context) {
+        jsonb.validate(context, "context");
         return jdbc.queryForObject("""
                 INSERT INTO worker.tasks (id, state, context)
                 VALUES (?, 'QUEUED', CAST(? AS jsonb))
@@ -43,8 +47,10 @@ public class TaskRepository {
                 .stream().findFirst();
     }
 
-    public void insertExperiment(UUID id, String pluginId, String pluginTitle,
-                          String scenarioId, String scenarioTitle, String grafanaUrl) {
+    public void insertExperiment(
+            UUID id, String pluginId, String pluginTitle,
+            String scenarioId, String scenarioTitle, String grafanaUrl
+    ) {
         jdbc.update("""
                 INSERT INTO dbehave.experiments
                     (task_id, plugin_id, plugin_title, scenario_id, scenario_title, grafana_url)
@@ -65,11 +71,18 @@ public class TaskRepository {
     private ExperimentRun readExperiment(ResultSet row, int index) throws SQLException {
         Timestamp heartbeat = row.getTimestamp("heartbeat");
         return new ExperimentRun(
-                row.getObject("id", UUID.class), row.getString("state"),
-                row.getTimestamp("created_at").toInstant(), row.getTimestamp("updated_at").toInstant(),
-                heartbeat == null ? null : heartbeat.toInstant(), row.getString("worker_id"), row.getString("error"),
-                row.getString("grafana_url"), row.getString("plugin_id"), row.getString("plugin_title"),
-                row.getString("scenario_id"), row.getString("scenario_title")
+                row.getObject("id", UUID.class),
+                row.getString("state"),
+                row.getTimestamp("created_at").toInstant(),
+                row.getTimestamp("updated_at").toInstant(),
+                heartbeat == null ? null : heartbeat.toInstant(),
+                row.getString("worker_id"),
+                row.getString("error"),
+                row.getString("grafana_url"),
+                row.getString("plugin_id"),
+                row.getString("plugin_title"),
+                row.getString("scenario_id"),
+                row.getString("scenario_title")
         );
     }
 

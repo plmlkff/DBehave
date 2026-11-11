@@ -3,13 +3,17 @@ package io.dbehave.backend.plugin;
 import io.dbehave.backend.validation.FieldError;
 import io.dbehave.backend.validation.InputValidation;
 import io.dbehave.backend.validation.InvalidExperimentException;
+import io.dbehave.backend.validation.JsonbValidation;
 import io.dbehave.plugin.ContextCollector;
 import io.dbehave.plugin.PluginDefinition;
 import io.dbehave.plugin.Scenario;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,9 +22,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class PluginRegistry {
     private final PluginRepository repository;
     private final Map<String, ContextCollector> collectors;
+    private final JsonbValidation jsonb;
 
-    public PluginRegistry(PluginRepository repository, List<ContextCollector> collectors) {
+    public PluginRegistry(PluginRepository repository, List<ContextCollector> collectors, JsonbValidation jsonb) {
         this.repository = repository;
+        this.jsonb = jsonb;
         this.collectors = collectors.stream()
                 .collect(Collectors.toUnmodifiableMap(ContextCollector::id, Function.identity()));
     }
@@ -34,8 +40,9 @@ public class PluginRegistry {
     }
 
     public PluginDefinition plugin(String pluginId) {
-        return repository.findById(pluginId).orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND, "Неизвестный плагин: " + pluginId));
+        return repository.findById(pluginId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Неизвестный плагин: " + pluginId));
     }
 
     public Scenario scenario(PluginDefinition plugin, String scenarioId) {
@@ -65,7 +72,8 @@ public class PluginRegistry {
 
     public PluginDefinition update(String id, PluginDefinition definition) {
         if (!id.equals(definition.id())) {
-            throw new InvalidExperimentException(List.of(new FieldError("id", "Идентификатор не совпадает с адресом запроса")));
+            throw new InvalidExperimentException(List.of(
+                    new FieldError("id", "Идентификатор не совпадает с адресом запроса")));
         }
         validate(definition);
         if (!repository.update(definition)) {
@@ -75,9 +83,10 @@ public class PluginRegistry {
     }
 
     private void validate(PluginDefinition definition) {
+        jsonb.validate(definition, "plugin");
         PluginValidation.validate(definition);
         var collector = collector(definition.collectorId());
-        var errors = new java.util.ArrayList<FieldError>();
+        var errors = new ArrayList<FieldError>();
         for (int index = 0; index < definition.scenarios().size(); index++) {
             var scenario = definition.scenarios().get(index);
             var settings = InputValidation.normalize("settings", scenario.settings(), null, errors);
