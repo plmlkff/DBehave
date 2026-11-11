@@ -15,6 +15,8 @@ public record ExperimentRun(
         String pluginId,
         String pluginTitle,
         String scenarioId,
-        String scenarioTitle
+        String scenarioTitle,
+        ExperimentRequest configuration,
+        String grafanaUrlTemplate
 ) {
 }

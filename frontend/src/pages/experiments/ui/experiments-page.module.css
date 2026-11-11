@@ -2,9 +2,23 @@
 .history { padding: 0; overflow: hidden; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--color-border); }
 .toolbar h2 { font-size: 16px; font-weight: 500; line-height: 24px; }
+.toolbarActions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.dangerButton { color: var(--color-danger); }
+.selectionBar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--color-border); }
+.selectionBar p { color: var(--color-text-muted); font-size: 13px; line-height: 22px; }
+.selectAll { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; line-height: 22px; cursor: pointer; }
+.selectAll .checkbox { margin: 0; }
+.deleteDialog { width: min(520px, calc(100% - 32px)); margin: auto; padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); box-shadow: 0 24px 80px #0008; }
+.deleteDialog::backdrop { background: #0009; }
+.deleteDialog h2 { font-size: 18px; font-weight: 600; line-height: 26px; }
+.deleteDialog p { margin: var(--space-3) 0; color: var(--color-text-muted); font-size: 13px; line-height: 22px; }
+.deleteDialog .toolbarActions { justify-content: flex-end; margin-top: var(--space-6); }
+.deleteDialog .dialogError { color: var(--color-danger); }
 .runs { margin: 0; padding: 0; list-style: none; }
-.run { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(170px, auto) auto; align-items: start; gap: var(--space-3) var(--space-6); padding: var(--space-5) var(--space-6); }
+.run { display: grid; grid-template-columns: 16px minmax(200px, 1fr) minmax(170px, auto) auto; align-items: start; gap: var(--space-3) var(--space-6); padding: var(--space-5) var(--space-6); }
 .run + .run { border-top: 1px solid var(--color-border); }
+.checkbox { width: 16px; height: 16px; margin: var(--space-1) 0 0; accent-color: var(--color-accent); cursor: pointer; }
+.checkbox:disabled { cursor: wait; }
 .experiment { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
 .pluginTitle { font-size: 14px; font-weight: 500; line-height: 22px; }
 .scenarioTitle { color: var(--color-text-muted); font-size: 13px; line-height: 20px; }
@@ -27,13 +41,13 @@
 .emptyState p { max-width: 48ch; color: var(--color-text-muted); line-height: 22px; }
 .emptyState button { margin-top: var(--space-3); }
 @media (max-width: 900px) {
-  .run { grid-template-columns: minmax(0, 1fr) auto; }
-  .runActions { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: var(--space-4); }
+  .run { grid-template-columns: 16px minmax(0, 1fr) auto; }
+  .runActions { grid-column: 2 / -1; flex-direction: row; align-items: center; flex-wrap: wrap; gap: var(--space-4); }
 }
 @media (max-width: 520px) {
-  .toolbar, .run, .errorState { padding: var(--space-4); }
-  .run { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
-  .details { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  .toolbar, .run, .errorState, .selectionBar { padding: var(--space-4); }
+  .run { grid-template-columns: 16px minmax(0, 1fr); gap: var(--space-3); }
+  .details { grid-column: 2 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
   .status { margin-top: 0; }
   .emptyState { min-height: 300px; }
 }

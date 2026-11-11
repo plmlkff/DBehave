@@ -48,4 +48,5 @@ export type ExperimentRun = {
   pluginTitle: string | null
   scenarioId: string | null
   scenarioTitle: string | null
+  configuration: ExperimentRequest | null
 }

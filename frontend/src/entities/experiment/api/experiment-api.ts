@@ -53,3 +53,15 @@ export function getExperiment(id: string, signal: AbortSignal) {
 export function getExperiments(signal: AbortSignal) {
   return request<ExperimentRun[]>('/experiments', { signal })
 }
+
+export function deleteExperiment(id: string, signal: AbortSignal) {
+  return request<void>(`/experiments/${encodeURIComponent(id)}`, { method: 'DELETE', signal })
+}
+
+export function deleteExperiments(runIds: string[], signal: AbortSignal) {
+  return request<void>('/experiments', {
+    method: 'DELETE',
+    body: JSON.stringify({ runIds }),
+    signal,
+  })
+}

@@ -32,7 +32,10 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -316,7 +319,7 @@ class PluginPlatformIntegrationTest {
                 .andReturn());
         var runId = UUID.fromString((String) response.get("id"));
         assertThat(response.get("grafanaUrl"))
-                .isEqualTo("https://grafana.example.test/d/custom?var-run_id=" + runId);
+                .isEqualTo("https://grafana.example.test/d/custom?var-run_id=" + runId + "&kiosk=1");
 
         var context = persistedContext(runId);
         assertThat(context).containsOnlyKeys("loaderImageName", "databaseImageName",
@@ -669,6 +672,240 @@ class PluginPlatformIntegrationTest {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM dbehave.plugins WHERE id = ?", Long.class,
                     plugin.get("id"))).isZero();
         }
+    }
+
+    @Test
+    @Transactional
+    void returnsTheNormalizedConfigurationAfterTheCatalogIsRemoved() throws Exception {
+        var plugin = genericPlugin();
+        register(plugin);
+        var created = startRun(Map.of(
+                "pluginId", plugin.get("id"), "scenarioId", "custom-scenario",
+                "params", Map.of("rps", 250),
+                "loaderImageContext", Map.of("core_max", 0.75)));
+        String id = (String) created.get("id");
+        jdbc.update("DELETE FROM dbehave.plugins WHERE id = ?", plugin.get("id"));
+
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuration.pluginId").value(plugin.get("id")))
+                .andExpect(jsonPath("$.configuration.scenarioId").value("custom-scenario"))
+                .andExpect(jsonPath("$.configuration.settings.cacheSize").value(64))
+                .andExpect(jsonPath("$.configuration.params.rps").value(250))
+                .andExpect(jsonPath("$.configuration.loaderImageContext.core_max").value(0.75))
+                .andExpect(jsonPath("$.configuration.loaderImageContext.mem_max").value(268_435_456))
+                .andExpect(jsonPath("$.configuration.databaseImageContext.core_max").value(1))
+                .andExpect(jsonPath("$.configuration.databaseImageContext.mem_max").value(1_073_741_824))
+                .andExpect(jsonPath("$.grafanaUrlTemplate").value(plugin.get("grafanaUrlTemplate")));
+        mvc.perform(get("/api/experiments"))
+                .andExpect(jsonPath("$[?(@.id == '%s')].configuration.params.rps".formatted(id), hasItem(250)));
+        assertThat(created.get("configuration")).isEqualTo(response(mvc.perform(
+                get("/api/experiments/{id}", id)).andReturn()).get("configuration"));
+    }
+
+    @Test
+    @Transactional
+    void removesOneRunFromHistoryWhilePreservingWorkerExecutionAndTimestamps() throws Exception {
+        var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        UUID id = UUID.fromString((String) created.get("id"));
+        var before = jdbc.queryForMap("SELECT * FROM worker.tasks WHERE id = ?", id);
+
+        mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/experiments/{id}", UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/experiments/{id}", id)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/experiments"))
+                .andExpect(jsonPath("$[*].id", not(hasItem(id.toString()))));
+        assertThat(jdbc.queryForMap("SELECT * FROM worker.tasks WHERE id = ?", id)).isEqualTo(before);
+
+        assertThat(jdbc.update("""
+                UPDATE worker.tasks SET state = 'RUNNING', worker_id = 'integration-worker',
+                    heartbeat = clock_timestamp() WHERE id = ? AND state = 'QUEUED'
+                """, id)).isEqualTo(1);
+        assertThat(jdbc.update("""
+                UPDATE worker.tasks SET state = 'SUCCEEDED', heartbeat = clock_timestamp()
+                WHERE id = ? AND state = 'RUNNING' AND worker_id = 'integration-worker'
+                """, id)).isEqualTo(1);
+        mvc.perform(get("/api/experiments/{id}", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @Transactional
+    void clearsTheEntireHistoryIncludingLegacyTasksBeyondTheFirstHundred() throws Exception {
+        jdbc.update("""
+                INSERT INTO worker.tasks (id, state, context)
+                SELECT gen_random_uuid(), 'SUCCEEDED', CAST(? AS jsonb)
+                FROM generate_series(1, 105)
+                """, json.writeValueAsString(Map.of(
+                "loaderImageName", "example/load:1", "databaseImageName", "example/database:1",
+                "loaderImageContext", Map.of(), "databaseImageContext", Map.of())));
+        long tasksBefore = taskCount();
+        mvc.perform(get("/api/experiments")).andExpect(jsonPath("$", hasSize(100)));
+
+        mvc.perform(delete("/api/experiments")).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/experiments")).andExpect(status().isNoContent());
+        mvc.perform(get("/api/experiments")).andExpect(jsonPath("$", hasSize(0)));
+        assertThat(taskCount()).isEqualTo(tasksBefore);
+
+        var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        mvc.perform(get("/api/experiments"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(created.get("id")));
+    }
+
+    @Test
+    @Transactional
+    void comparesRunsUsingTheSavedTemplateAndPreservesIdOrder() throws Exception {
+        var plugin = genericPlugin();
+        String template = "https://grafana.example.test/d/custom?orgId=1&var-run_id={runId}&var-label=a%2Bb#panel";
+        plugin.put("grafanaUrlTemplate", template);
+        register(plugin);
+        var first = startRun(Map.of("pluginId", plugin.get("id"), "scenarioId", "custom-scenario"));
+        var second = startRun(Map.of("pluginId", plugin.get("id"), "scenarioId", "custom-scenario"));
+        jdbc.update("DELETE FROM dbehave.plugins WHERE id = ?", plugin.get("id"));
+
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(second.get("id"), first.get("id"), second.get("id"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grafanaUrl").value(
+                        "https://grafana.example.test/d/custom?orgId=1&var-run_id=" + second.get("id")
+                                + "&var-run_id=" + first.get("id") + "&var-label=a%2Bb&kiosk=1#panel"));
+    }
+
+    @Test
+    @Transactional
+    void comparesDifferentPluginsWhenTheirSavedTemplateAndScenarioAreTheSame() throws Exception {
+        var firstPlugin = genericPlugin();
+        var secondPlugin = genericPlugin();
+        register(firstPlugin);
+        register(secondPlugin);
+        var first = startRun(Map.of("pluginId", firstPlugin.get("id"), "scenarioId", "custom-scenario"));
+        var second = startRun(Map.of("pluginId", secondPlugin.get("id"), "scenarioId", "custom-scenario"));
+
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), second.get("id"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grafanaUrl").value(
+                        "https://grafana.example.test/d/custom?var-run_id=" + first.get("id")
+                                + "&var-run_id=" + second.get("id") + "&kiosk=1"));
+    }
+
+    @Test
+    @Transactional
+    void rejectsComparisonOfDifferentScenariosAndSavedTemplates() throws Exception {
+        var first = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        var differentScenario = startRun(Map.of("pluginId", "postgres", "scenarioId", "read-heavy"));
+        assertComparisonRejected(first.get("id"), differentScenario.get("id"));
+
+        jdbc.update("""
+                UPDATE dbehave.plugins SET definition = jsonb_set(definition, '{grafanaUrlTemplate}', to_jsonb(CAST(? AS text)))
+                WHERE id = 'postgres'
+                """, "https://other.example.test/d/changed?var-run_id={runId}");
+        var differentTemplate = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        assertComparisonRejected(first.get("id"), differentTemplate.get("id"));
+    }
+
+    @Test
+    @Transactional
+    void addsKioskToLegacyLinksWithoutChangingTheirSavedTemplate() throws Exception {
+        var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        UUID id = UUID.fromString((String) created.get("id"));
+        String savedUrl = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&kiosk=tv&filter=a%2Bb#panel";
+        jdbc.update("UPDATE dbehave.experiments SET grafana_url = ? WHERE task_id = ?", savedUrl, id);
+        String expected = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&filter=a%2Bb&kiosk=1#panel";
+
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grafanaUrl").value(expected))
+                .andExpect(jsonPath("$.grafanaUrlTemplate").value("http://localhost:3001/d/dbehave-postgres?var-run_id={runId}"));
+        mvc.perform(get("/api/experiments"))
+                .andExpect(jsonPath("$[?(@.id == '%s')].grafanaUrl".formatted(id), hasItem(expected)));
+        assertThat(jdbc.queryForObject("SELECT grafana_url FROM dbehave.experiments WHERE task_id = ?", String.class, id))
+                .isEqualTo(savedUrl);
+    }
+
+    @Test
+    @Transactional
+    void removesOnlySelectedRunsAndRollsBackWhenAnyIdIsUnknown() throws Exception {
+        var first = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        var second = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        var retained = startRun(Map.of("pluginId", "postgres", "scenarioId", "read-heavy"));
+        String selection = json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), second.get("id"), first.get("id"))));
+
+        mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), UUID.randomUUID())))))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/experiments/{id}", first.get("id"))).andExpect(status().isOk());
+
+        mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON).content(selection))
+                .andExpect(status().isNoContent());
+        mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON).content(selection))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/experiments/{id}", first.get("id"))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/experiments/{id}", second.get("id"))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/experiments/{id}", retained.get("id"))).andExpect(status().isOk());
+    }
+
+    @Test
+    @Transactional
+    void rejectsInvalidSelectionsWithoutClearingHistory() throws Exception {
+        var retained = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        for (String body : List.of("null", "{}", "{\"runIds\":null}", "{\"runIds\":[]}",
+                "{\"runIds\":[null]}", "{\"runIds\":[\"invalid-uuid\"]}")) {
+            mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(get("/api/experiments/{id}", retained.get("id"))).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    @Transactional
+    void keepsLegacyTasksReadableAndDeletableWithoutInventingTheirOriginalInput() throws Exception {
+        UUID id = UUID.randomUUID();
+        tasks.insert(id, new ExecutionContext("example/load:1", "example/database:1", Map.of(), Map.of()));
+
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configuration").value(nullValue()))
+                .andExpect(jsonPath("$.grafanaUrlTemplate").value(nullValue()));
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(id)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
+        mvc.perform(get("/api/experiments/{id}", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @Transactional
+    void validatesComparisonIdsAndReturnsNotFoundForHiddenRuns() throws Exception {
+        for (String body : List.of("{}", "{\"runIds\":null}", "{\"runIds\":[]}",
+                "{\"runIds\":[null]}", "{\"runIds\":[\"invalid-uuid\"]}")) {
+            mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        for (Object id : List.of(UUID.randomUUID().toString(), created.get("id"))) {
+            if (id.equals(created.get("id"))) {
+                mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
+            }
+            mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(Map.of("runIds", List.of(id)))))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    private void assertComparisonRejected(Object first, Object second) throws Exception {
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(first, second)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    private Map<String, Object> startRun(Map<String, Object> request) throws Exception {
+        return response(mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andReturn());
     }
 
     private void assertRejectedBeforeQueue(Map<String, Object> request) throws Exception {

@@ -12,9 +12,13 @@ import io.dbehave.plugin.ImageContexts;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -59,6 +63,8 @@ public class ExperimentService {
         InputValidation.rejectErrors(errors);
         jsonb.validate(Map.of("settings", settings, "params", params,
                 "loaderImageContext", loaderLimits, "databaseImageContext", databaseLimits), "input");
+        var savedSettings = Map.copyOf(settings);
+        var savedParams = Map.copyOf(params);
 
         ImageContexts collected;
         try {
@@ -70,30 +76,35 @@ public class ExperimentService {
         var databaseContext = new HashMap<>(collected.databaseImageContext());
         loaderContext.putAll(loaderLimits);
         databaseContext.putAll(databaseLimits);
-        InputValidation.resources("loaderImageContext", loaderContext, null, errors);
-        InputValidation.resources("databaseImageContext", databaseContext, null, errors);
+        var effectiveLoaderLimits = InputValidation.resources("loaderImageContext", loaderContext, null, errors);
+        var effectiveDatabaseLimits = InputValidation.resources("databaseImageContext", databaseContext, null, errors);
         InputValidation.rejectErrors(errors);
 
         var context = new ExecutionContext(
                 plugin.loaderImageName(), plugin.databaseImageName(), loaderContext, databaseContext);
         jsonb.validate(context, "context");
+        var configuration = new ExperimentRequest(plugin.id(), scenario.id(), savedSettings, savedParams,
+                Map.copyOf(effectiveLoaderLimits), Map.copyOf(effectiveDatabaseLimits));
         return new PreparedExperiment(context,
-                plugin.grafanaUrlTemplate(), plugin.id(), plugin.title(), scenario.id(), scenario.title());
+                plugin.grafanaUrlTemplate(), plugin.id(), plugin.title(), scenario.id(), scenario.title(), configuration);
     }
 
     @Transactional
     public ExperimentRun start(ExperimentRequest request) {
         var prepared = prepare(request);
         var id = UUID.randomUUID();
-        String grafanaUrl = prepared.grafanaUrlTemplate().replace("{runId}", id.toString());
+        String grafanaUrl = GrafanaUrl.withKiosk(
+                prepared.grafanaUrlTemplate().replace("{runId}", id.toString()));
         var task = tasks.insert(id, prepared.context());
         tasks.insertExperiment(
                 id, prepared.pluginId(), prepared.pluginTitle(),
-                prepared.scenarioId(), prepared.scenarioTitle(), grafanaUrl);
+                prepared.scenarioId(), prepared.scenarioTitle(), grafanaUrl,
+                prepared.configuration(), prepared.grafanaUrlTemplate());
         return new ExperimentRun(
                 task.id(), task.state(), task.createdAt(), task.updatedAt(),
                 task.heartbeat(), task.workerId(), task.error(), grafanaUrl,
-                prepared.pluginId(), prepared.pluginTitle(), prepared.scenarioId(), prepared.scenarioTitle());
+                prepared.pluginId(), prepared.pluginTitle(), prepared.scenarioId(), prepared.scenarioTitle(),
+                prepared.configuration(), prepared.grafanaUrlTemplate());
     }
 
     public ExperimentRun status(UUID id) {
@@ -105,13 +116,80 @@ public class ExperimentService {
         return tasks.findRecentExperiments();
     }
 
+    public void hide(UUID id) {
+        if (!tasks.hideExperiment(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id);
+        }
+    }
+
+    public void clearHistory() {
+        tasks.hideAllExperiments();
+    }
+
+    @Transactional
+    public void hideSelected(List<UUID> runIds) {
+        var ids = selectedIds(runIds);
+        var existing = new HashSet<>(tasks.lockTaskIds(ids));
+        for (UUID id : ids) {
+            if (!existing.contains(id)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id);
+            }
+        }
+        tasks.hideExperiments(ids);
+    }
+
+    private static List<UUID> selectedIds(List<UUID> runIds) {
+        var errors = new ArrayList<FieldError>();
+        if (runIds == null || runIds.isEmpty()) {
+            errors.add(new FieldError("runIds", "Выберите хотя бы один запуск"));
+        } else {
+            for (int index = 0; index < runIds.size(); index++) {
+                if (runIds.get(index) == null) {
+                    errors.add(new FieldError("runIds[" + index + "]", "Укажите идентификатор запуска"));
+                }
+            }
+        }
+        InputValidation.rejectErrors(errors);
+        return List.copyOf(new LinkedHashSet<>(runIds));
+    }
+
+    public String compare(List<UUID> runIds) {
+        var ids = selectedIds(runIds);
+        var errors = new ArrayList<FieldError>();
+        var runs = tasks.findExperimentsByIds(ids).stream()
+                .collect(Collectors.toMap(ExperimentRun::id, Function.identity()));
+        for (UUID id : ids) {
+            if (!runs.containsKey(id)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id);
+            }
+        }
+        var first = runs.get(ids.getFirst());
+        for (UUID id : ids) {
+            var run = runs.get(id);
+            if (run.grafanaUrlTemplate() == null || run.grafanaUrlTemplate().isBlank()
+                    || run.scenarioId() == null || run.scenarioId().isBlank()) {
+                errors.add(new FieldError("runIds", "Для выбранного запуска не сохранены данные дашборда и сценария"));
+            } else if (!run.grafanaUrlTemplate().equals(first.grafanaUrlTemplate())
+                    || !run.scenarioId().equals(first.scenarioId())) {
+                errors.add(new FieldError("runIds", "Выберите запуски одного сценария с одинаковым шаблоном дашборда"));
+            }
+        }
+        InputValidation.rejectErrors(errors);
+        try {
+            return GrafanaUrl.fromTemplate(first.grafanaUrlTemplate(), ids);
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidExperimentException(List.of(new FieldError("runIds", exception.getMessage())));
+        }
+    }
+
     public record PreparedExperiment(
             ExecutionContext context,
             String grafanaUrlTemplate,
             String pluginId,
             String pluginTitle,
             String scenarioId,
-            String scenarioTitle
+            String scenarioTitle,
+            ExperimentRequest configuration
     ) {
     }
 }
