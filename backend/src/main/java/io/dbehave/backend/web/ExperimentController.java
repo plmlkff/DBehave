@@ -9,6 +9,7 @@ import io.dbehave.backend.validation.FieldError;
 import io.dbehave.backend.validation.InvalidExperimentException;
 import io.dbehave.plugin.PluginDefinition;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -106,6 +108,34 @@ class ExperimentController {
         return experiments.status(id);
     }
 
+    @DeleteMapping("/api/experiments/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Скрыть запуск из истории")
+    void hide(@PathVariable UUID id) {
+        experiments.hide(id);
+    }
+
+    @DeleteMapping("/api/experiments")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Скрыть выбранные запуски или очистить историю",
+            description = "Тело {runIds: [...]} скрывает выбранные запуски атомарно. "
+                    + "При неизвестном id возвращает 404 без изменений. Запрос без тела очищает всю историю.")
+    void clearHistory(@RequestBody(required = false) RunSelection request, HttpServletRequest httpRequest) {
+        boolean hasBody = httpRequest.getContentLengthLong() > 0
+                || httpRequest.getHeader("Transfer-Encoding") != null;
+        if (request != null || hasBody) {
+            experiments.hideSelected(request == null ? null : request.runIds());
+        } else {
+            experiments.clearHistory();
+        }
+    }
+
+    @PostMapping("/api/experiments/compare")
+    @Operation(summary = "Получить ссылку Grafana для сравнения запусков")
+    ComparisonResult compare(@RequestBody(required = false) RunSelection request) {
+        return new ComparisonResult(experiments.compare(request == null ? null : request.runIds()));
+    }
+
     @ExceptionHandler(InvalidExperimentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ValidationError invalidExperiment(InvalidExperimentException exception) {
@@ -128,5 +158,11 @@ class ExperimentController {
     }
 
     public record ScenarioSummary(String id, String title, String description) {
+    }
+
+    public record RunSelection(List<UUID> runIds) {
+    }
+
+    public record ComparisonResult(String grafanaUrl) {
     }
 }

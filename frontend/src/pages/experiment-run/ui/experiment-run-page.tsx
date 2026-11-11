@@ -5,6 +5,7 @@ import { routes } from '@/shared/config/routes'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel } from '@/shared/ui/panel'
+import { RunConfiguration } from './run-configuration'
 import styles from './experiment-run-page.module.css'
 
 function timestamp(value: string | null) {
@@ -16,7 +17,7 @@ function timestamp(value: string | null) {
 function grafanaEmbedUrl(value: string) {
   try {
     const url = new URL(value)
-    url.searchParams.set('kiosk', 'tv')
+    url.searchParams.set('kiosk', '')
     url.searchParams.set('refresh', '1s')
     return url.toString()
   } catch {
@@ -70,6 +71,7 @@ export function ExperimentRunPage() {
               <pre className={styles.executionError}>{run.error}</pre>
             </Panel>
           )}
+          <RunConfiguration configuration={run.configuration} />
           <Panel aria-labelledby="run-charts-title">
             <h2 id="run-charts-title" className={styles.sectionTitle}>Графики</h2>
             {run.grafanaUrl && chartUrl ? (

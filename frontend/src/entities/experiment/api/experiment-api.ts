@@ -1,5 +1,5 @@
 import { request } from '@/shared/api'
-import type { ExperimentRequest, ExperimentRun, ExperimentScreen, ScenarioSummary, ValidationResult } from '../model/types'
+import type { ExperimentComparison, ExperimentRequest, ExperimentRun, ExperimentScreen, ScenarioSummary, ValidationResult } from '../model/types'
 
 export function getScenarios(pluginId: string, signal: AbortSignal) {
   const query = new URLSearchParams({ pluginId })
@@ -52,4 +52,24 @@ export function getExperiment(id: string, signal: AbortSignal) {
 
 export function getExperiments(signal: AbortSignal) {
   return request<ExperimentRun[]>('/experiments', { signal })
+}
+
+export function deleteExperiment(id: string, signal: AbortSignal) {
+  return request<void>(`/experiments/${encodeURIComponent(id)}`, { method: 'DELETE', signal })
+}
+
+export function deleteExperiments(runIds: string[], signal: AbortSignal) {
+  return request<void>('/experiments', {
+    method: 'DELETE',
+    body: JSON.stringify({ runIds }),
+    signal,
+  })
+}
+
+export function compareExperiments(runIds: string[], signal: AbortSignal) {
+  return request<ExperimentComparison>('/experiments/compare', {
+    method: 'POST',
+    body: JSON.stringify({ runIds }),
+    signal,
+  })
 }
