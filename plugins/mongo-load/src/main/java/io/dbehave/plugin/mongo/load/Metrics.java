@@ -20,12 +20,12 @@ final class Metrics extends LoadMetrics {
             .name("dbehave_mongo_cache_pages_read_total")
             .help("Страницы, прочитанные в кеш WiredTiger за время нагрузки")
             .register(registry());
-    private final Gauge collectionBytes = gauge("dbehave_mongo_collection_bytes", "Размер коллекции", "kind");
+    private final Gauge collectionBytes = gauge("dbehave_mongo_collection_bytes", "Размер коллекции", "collection", "kind");
     private final Gauge storageBytesPerDocument = gauge("dbehave_mongo_storage_bytes_per_document",
-            "Размер данных на диске в пересчёте на документ");
+            "Размер данных на диске в пересчёте на документ", "collection");
     private final Gauge explain = gauge("dbehave_mongo_query_explain", "Статистика контрольного запроса по SKU", "kind");
     private final Gauge reportUsedDisk = gauge("dbehave_mongo_report_used_disk",
-            "Контрольный отчёт использовал временные файлы, 1 — да, 0 — нет");
+            "Контрольный отчёт использовал временные файлы, 1 — да, 0 — нет", "op");
 
     void measure(String op, Runnable work) {
         long start = System.nanoTime();
@@ -63,13 +63,13 @@ final class Metrics extends LoadMetrics {
         cacheReads.inc(pagesRead);
     }
 
-    void storage(Document stats) {
+    void storage(String collection, Document stats) {
         double stored = value(stats, "storageSize");
-        collectionBytes.labelValues("data").set(stored);
-        collectionBytes.labelValues("indexes").set(value(stats, "totalIndexSize"));
+        collectionBytes.labelValues(collection, "data").set(stored);
+        collectionBytes.labelValues(collection, "indexes").set(value(stats, "totalIndexSize"));
         double count = value(stats, "count");
         if (count > 0) {
-            storageBytesPerDocument.set(stored / count);
+            storageBytesPerDocument.labelValues(collection).set(stored / count);
         }
     }
 
@@ -80,7 +80,7 @@ final class Metrics extends LoadMetrics {
     }
 
     void reportUsedDisk(boolean used) {
-        reportUsedDisk.set(used ? 1 : 0);
+        reportUsedDisk.labelValues("report").set(used ? 1 : 0);
     }
 
     private Gauge gauge(String name, String help, String... labels) {

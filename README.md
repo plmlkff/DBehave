@@ -13,8 +13,8 @@ docker compose -f infra/compose.yaml up --build --wait
 ```
 
 Compose соберёт и запустит фронтенд, API, PostgreSQL, worker, Prometheus и Grafana.
-Backend создаст таблицы и зарегистрирует PostgreSQL-плагин; worker дождётся базы
-и готового образа нагрузчика.
+Backend создаст таблицы и зарегистрирует плагины PostgreSQL и MongoDB. Worker
+дождётся базы метаданных и готовых образов нагрузчиков.
 
 Порты указаны в формате «в контейнере → на компьютере».
 
@@ -62,3 +62,4 @@ Compose монтирует Docker socket в worker: это даёт ему по�
 - [Настройка worker и общие метрики ресурсов](worker/README.md)
 - [Разработка фронтенда](frontend/README.md)
 - [Нагрузчик PostgreSQL и отдельный стенд с Grafana](plugins/postgres-load/README.md)
+- [Сценарии MongoDB и сравнение с PostgreSQL](plugins/mongo-load/README.md)

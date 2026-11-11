@@ -50,6 +50,14 @@ services:
     entrypoint: ["/bin/true"]
     restart: "no"
 
+  mongo-loadgen-image:
+    image: dbehave/mongo-load:0.1.0
+    build:
+      context: ..
+      dockerfile: plugins/mongo-load/Dockerfile
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
   worker:
     image: dbehave/worker:local
     build:
@@ -83,6 +91,8 @@ services:
       pushgateway:
         condition: service_started
       loadgen-image:
+        condition: service_completed_successfully
+      mongo-loadgen-image:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]

@@ -48,6 +48,7 @@
 | Метрика | Тип | Метки | Что это |
 |---|---|---|---|
 | `dbehave_operations_total` | counter | `op` | успешные операции |
+| `dbehave_records_written_total` | counter | `op` | число строк в подтверждённых пачках `write-heavy` |
 | `dbehave_operation_duration_seconds` | histogram | `op` | время успешных операций (для p50/p95/p99) |
 | `dbehave_errors_total` | counter | `op`, `kind` | ошибки по видам: `serialization_failure`, `deadlock`, `lock_timeout`, `statement_timeout`, `idle_session_terminated`, `too_many_connections`, `connection_error`, `constraint_violation`, `other` |
 | `dbehave_phase` | gauge | `phase` | 1 у текущей фазы |

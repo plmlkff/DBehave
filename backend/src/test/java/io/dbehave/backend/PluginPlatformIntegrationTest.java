@@ -71,7 +71,8 @@ class PluginPlatformIntegrationTest {
     void migratesBothSchemasAndReadsThePersistedCatalog() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].id", hasItem("postgres")));
+                .andExpect(jsonPath("$[*].id", hasItem("postgres")))
+                .andExpect(jsonPath("$[*].id", hasItem("mongo")));
         mvc.perform(get("/api/plugins/postgres"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.collectorId").value("postgres"))
@@ -81,7 +82,8 @@ class PluginPlatformIntegrationTest {
         mvc.perform(get("/api/context-collectors"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasItem("generic")))
-                .andExpect(jsonPath("$", hasItem("postgres")));
+                .andExpect(jsonPath("$", hasItem("postgres")))
+                .andExpect(jsonPath("$", hasItem("mongo")));
 
         assertThat(jdbc.queryForObject(
                 "select jsonb_typeof(definition) from dbehave.plugins where id = 'postgres'", String.class))
@@ -788,6 +790,31 @@ class PluginPlatformIntegrationTest {
                 .andExpect(jsonPath("$.grafanaUrl").value(
                         "https://grafana.example.test/d/custom?var-run_id=" + first.get("id")
                                 + "&var-run_id=" + second.get("id") + "&kiosk=1"));
+    }
+
+    @Test
+    @Transactional
+    void queuesMongoAndComparesItWithPostgres() throws Exception {
+        var mongo = startRun(Map.of("pluginId", "mongo", "scenarioId", "read-heavy",
+                "settings", Map.of("cacheSizeGB", 0.5, "allowDiskUse", false),
+                "params", Map.of("datasetRows", 100_000, "payloadBytes", 2048)));
+        var context = persistedContext(UUID.fromString((String) mongo.get("id")));
+        assertThat(context).containsEntry("databaseImageName", "mongo:8.0")
+                .containsEntry("loaderImageName", "dbehave/mongo-load:0.1.0");
+        assertThat(imageContext(context, "databaseImageContext").get("command"))
+                .isEqualTo(List.of("mongod", "--bind_ip_all", "--wiredTigerCacheSizeGB=0.5"));
+        assertThat(imageContext(imageContext(context, "loaderImageContext"), "environment"))
+                .containsEntry("SCENARIO", "read-heavy")
+                .containsEntry("MONGO_ALLOW_DISK_USE", "false")
+                .containsEntry("PAYLOAD_BYTES", "2048");
+
+        var postgres = startRun(Map.of("pluginId", "postgres", "scenarioId", "read-heavy"));
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(mongo.get("id"), postgres.get("id"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grafanaUrl").value(
+                        "http://localhost:3001/d/dbehave-postgres?var-run_id=" + mongo.get("id")
+                                + "&var-run_id=" + postgres.get("id") + "&kiosk=1"));
     }
 
     @Test

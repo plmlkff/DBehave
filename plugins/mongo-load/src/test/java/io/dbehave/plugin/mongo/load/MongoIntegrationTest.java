@@ -87,7 +87,7 @@ class MongoIntegrationTest {
                 spills.client(0).run();
                 spills.verify(client.getDatabase("admin"));
                 assertThat(scrape(enabled)).contains("dbehave_operations_total{op=\"report\"} 1.0",
-                        "dbehave_mongo_report_used_disk 1.0");
+                        "dbehave_mongo_report_used_disk{op=\"report\"} 1.0");
 
                 env.put("MONGO_ALLOW_DISK_USE", "false");
                 var disabled = new Metrics();
@@ -95,7 +95,7 @@ class MongoIntegrationTest {
                 fails.client(0).run();
                 fails.verify(client.getDatabase("admin"));
                 assertThat(scrape(disabled)).contains("dbehave_errors_total{kind=\"memory_limit\",op=\"report\"} 1.0",
-                        "dbehave_mongo_report_used_disk 0.0");
+                        "dbehave_mongo_report_used_disk{op=\"report\"} 0.0");
             } finally {
                 database.drop();
             }

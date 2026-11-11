@@ -31,10 +31,13 @@ class LoadGeneratorTest {
         metrics.measure("report", () -> {});
         metrics.measure("report", () -> { throw new MongoException(292, "test"); });
 
-        assertThat(scrape(metrics)).contains(
+        String samples = scrape(metrics);
+        assertThat(samples).contains(
                 "dbehave_operations_total{op=\"report\"} 1.0",
                 "dbehave_operation_duration_seconds_count{op=\"report\"} 1",
                 "dbehave_errors_total{kind=\"memory_limit\",op=\"report\"} 1.0");
+        assertThat(samples.lines()).noneMatch(line -> line.startsWith("dbehave_mongo_report_used_disk")
+                || line.startsWith("dbehave_mongo_storage_bytes_per_document"));
         assertThat(new String(HttpEndpoints.healthJson(state), UTF_8)).contains(
                 "\"status\":\"RUNNING\"", "\"phase\":\"LOAD\"");
     }

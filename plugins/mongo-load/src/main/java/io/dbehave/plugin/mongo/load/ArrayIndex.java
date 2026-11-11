@@ -60,7 +60,7 @@ final class ArrayIndex implements Scenario {
     public void verify(MongoDatabase admin) {
         var result = orders.find(eq("items.sku", 0)).projection(include("_id")).explain(EXECUTION_STATS);
         metrics.arrayExplain(result.get("executionStats", Document.class));
-        metrics.storage(Data.storageStats(admin, orders));
+        metrics.storage("orders", Data.storageStats(admin, orders));
     }
 
     private Document order(int id) {

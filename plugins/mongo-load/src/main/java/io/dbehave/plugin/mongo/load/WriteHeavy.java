@@ -60,6 +60,6 @@ final class WriteHeavy implements Scenario {
 
     @Override
     public void verify(MongoDatabase admin) {
-        metrics.storage(Data.storageStats(admin, collection));
+        metrics.storage("events", Data.storageStats(admin, collection));
     }
 }
