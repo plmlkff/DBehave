@@ -88,7 +88,7 @@ public final class GrafanaUrl {
                 }
             }
         }
-        parameters.add("kiosk");
+        parameters.add("kiosk=1");
         return prefix + "?" + String.join("&", parameters) + fragment;
     }
 

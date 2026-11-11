@@ -186,7 +186,7 @@ GET {{baseUrl}}/api/experiments
 GET {{baseUrl}}/api/experiments/{{runId}}
 
 ### Сравнить запуски одного сценария с одинаковым сохранённым шаблоном Grafana
-# 200 {"grafanaUrl":"http://localhost:3001/d/dbehave-postgres?var-run_id=...&var-run_id=...&kiosk"}
+# 200 {"grafanaUrl":"http://localhost:3001/d/dbehave-postgres?var-run_id=...&var-run_id=...&kiosk=1"}
 # Подставьте UUID из ответов запуска. Повторные UUID учитываются один раз.
 # Разные шаблоны/сценарии -> 400, отсутствующий или удалённый из истории запуск -> 404.
 POST {{baseUrl}}/api/experiments/compare

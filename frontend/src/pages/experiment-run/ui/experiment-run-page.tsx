@@ -5,6 +5,7 @@ import { routes } from '@/shared/config/routes'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel } from '@/shared/ui/panel'
+import { grafanaEmbedUrl } from '../model/grafana-url'
 import { RunConfiguration } from './run-configuration'
 import styles from './experiment-run-page.module.css'
 
@@ -12,17 +13,6 @@ function timestamp(value: string | null) {
   if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU')
-}
-
-function grafanaEmbedUrl(value: string) {
-  try {
-    const url = new URL(value)
-    url.searchParams.set('kiosk', '')
-    url.searchParams.set('refresh', '1s')
-    return url.toString()
-  } catch {
-    return null
-  }
 }
 
 export function ExperimentRunPage() {

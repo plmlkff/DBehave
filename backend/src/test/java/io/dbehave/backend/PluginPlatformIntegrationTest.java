@@ -319,7 +319,7 @@ class PluginPlatformIntegrationTest {
                 .andReturn());
         var runId = UUID.fromString((String) response.get("id"));
         assertThat(response.get("grafanaUrl"))
-                .isEqualTo("https://grafana.example.test/d/custom?var-run_id=" + runId + "&kiosk");
+                .isEqualTo("https://grafana.example.test/d/custom?var-run_id=" + runId + "&kiosk=1");
 
         var context = persistedContext(runId);
         assertThat(context).containsOnlyKeys("loaderImageName", "databaseImageName",
@@ -769,7 +769,7 @@ class PluginPlatformIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.grafanaUrl").value(
                         "https://grafana.example.test/d/custom?orgId=1&var-run_id=" + second.get("id")
-                                + "&var-run_id=" + first.get("id") + "&var-label=a%2Bb&kiosk#panel"));
+                                + "&var-run_id=" + first.get("id") + "&var-label=a%2Bb&kiosk=1#panel"));
     }
 
     @Test
@@ -787,7 +787,7 @@ class PluginPlatformIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.grafanaUrl").value(
                         "https://grafana.example.test/d/custom?var-run_id=" + first.get("id")
-                                + "&var-run_id=" + second.get("id") + "&kiosk"));
+                                + "&var-run_id=" + second.get("id") + "&kiosk=1"));
     }
 
     @Test
@@ -812,7 +812,7 @@ class PluginPlatformIntegrationTest {
         UUID id = UUID.fromString((String) created.get("id"));
         String savedUrl = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&kiosk=tv&filter=a%2Bb#panel";
         jdbc.update("UPDATE dbehave.experiments SET grafana_url = ? WHERE task_id = ?", savedUrl, id);
-        String expected = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&filter=a%2Bb&kiosk#panel";
+        String expected = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&filter=a%2Bb&kiosk=1#panel";
 
         mvc.perform(get("/api/experiments/{id}", id))
                 .andExpect(status().isOk())

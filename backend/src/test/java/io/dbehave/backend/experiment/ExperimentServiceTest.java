@@ -93,7 +93,7 @@ class ExperimentServiceTest {
         assertThat(created.scenarioTitle()).isEqualTo(original.scenarios().stream()
                 .filter(scenario -> scenario.id().equals("mixed")).findFirst().orElseThrow().title());
         assertThat(created.grafanaUrl()).isEqualTo(
-                original.grafanaUrlTemplate().replace("{runId}", created.id().toString()) + "&kiosk");
+                original.grafanaUrlTemplate().replace("{runId}", created.id().toString()) + "&kiosk=1");
         verify(repository).findById("postgres");
         verify(tasks).insertExperiment(created.id(), created.pluginId(), created.pluginTitle(),
                 created.scenarioId(), created.scenarioTitle(), created.grafanaUrl(),
@@ -144,7 +144,7 @@ class ExperimentServiceTest {
                 run(second, "second-plugin", "mixed", template), run(first, "first-plugin", "mixed", template)));
 
         assertThat(service.compare(List.of(first, second, first))).isEqualTo(
-                "https://grafana.test/d/board?var-run_id=" + first + "&var-run_id=" + second + "&from=now-1h&kiosk#panel");
+                "https://grafana.test/d/board?var-run_id=" + first + "&var-run_id=" + second + "&from=now-1h&kiosk=1#panel");
         verify(tasks).findExperimentsByIds(List.of(first, second));
         verifyNoInteractions(registry);
     }

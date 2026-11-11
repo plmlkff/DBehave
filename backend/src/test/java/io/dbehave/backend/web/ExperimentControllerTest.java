@@ -144,7 +144,7 @@ class ExperimentControllerTest {
                 Map.of("clients", 16), Map.of("core_max", 0.5), Map.of("mem_max", 1024));
         String template = "https://grafana.test/?var-run_id={runId}";
         var run = new ExperimentRun(id, "QUEUED", Instant.EPOCH, Instant.EPOCH, null, null, null,
-                template.replace("{runId}", id.toString()) + "&kiosk", "postgres", "PostgreSQL", "mixed", "Mixed",
+                template.replace("{runId}", id.toString()) + "&kiosk=1", "postgres", "PostgreSQL", "mixed", "Mixed",
                 configuration, template);
         when(tasks.findExperimentById(id)).thenReturn(Optional.of(run));
 
@@ -153,7 +153,7 @@ class ExperimentControllerTest {
                 .andExpect(jsonPath("$.configuration.settings.shared_buffers").value(128))
                 .andExpect(jsonPath("$.configuration.params.clients").value(16))
                 .andExpect(jsonPath("$.configuration.loaderImageContext.core_max").value(0.5))
-                .andExpect(jsonPath("$.grafanaUrl").value(template.replace("{runId}", id.toString()) + "&kiosk"))
+                .andExpect(jsonPath("$.grafanaUrl").value(template.replace("{runId}", id.toString()) + "&kiosk=1"))
                 .andExpect(jsonPath("$.grafanaUrlTemplate").value(template))
                 .andExpect(jsonPath("$.context").doesNotExist());
     }
@@ -231,7 +231,7 @@ class ExperimentControllerTest {
                         .content("{\"runIds\":[\"" + first + "\",\"" + second + "\",\"" + first + "\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.grafanaUrl").value(
-                        "https://grafana.test/?var-run_id=" + first + "&var-run_id=" + second + "&kiosk"));
+                        "https://grafana.test/?var-run_id=" + first + "&var-run_id=" + second + "&kiosk=1"));
     }
 
     @ParameterizedTest
@@ -255,7 +255,7 @@ class ExperimentControllerTest {
     private static ExperimentRun comparableRun(UUID id) {
         String template = "https://grafana.test/?var-run_id={runId}";
         return new ExperimentRun(id, "DONE", Instant.EPOCH, Instant.EPOCH, null, null, null,
-                template.replace("{runId}", id.toString()) + "&kiosk", "postgres", "PostgreSQL", "mixed", "Mixed",
+                template.replace("{runId}", id.toString()) + "&kiosk=1", "postgres", "PostgreSQL", "mixed", "Mixed",
                 null, template);
     }
 

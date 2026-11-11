@@ -18,7 +18,7 @@ class GrafanaUrlTest {
         String actual = GrafanaUrl.fromTemplate(
                 "http://localhost:3001/d/dbehave-postgres?var-run_id={runId}", List.of(FIRST, SECOND));
 
-        assertThat(actual).isEqualTo("http://localhost:3001/d/dbehave-postgres?var-run_id=" + FIRST + "&var-run_id=" + SECOND + "&kiosk");
+        assertThat(actual).isEqualTo("http://localhost:3001/d/dbehave-postgres?var-run_id=" + FIRST + "&var-run_id=" + SECOND + "&kiosk=1");
     }
 
     @Test
@@ -30,21 +30,21 @@ class GrafanaUrlTest {
 
         assertThat(actual).isEqualTo("https://grafana.example/d/test?from=1700000000000&to=now&var-source=a%2Fb%20c"
                 + "&var-source=x+y&filter=key%3Dvalue%26other%3D%2520&var-run_id=" + FIRST
-                + "&var-run_id=" + SECOND + "&kiosk#panel%2Fone");
+                + "&var-run_id=" + SECOND + "&kiosk=1#panel%2Fone");
     }
 
     @Test
     void supportsAlternativeVariableNamesAndOneRun() {
         assertThat(GrafanaUrl.fromTemplate(
                 "https://grafana.example/d/test?var-experiment={runId}&kiosk", List.of(FIRST)))
-                .isEqualTo("https://grafana.example/d/test?var-experiment=" + FIRST + "&kiosk");
+                .isEqualTo("https://grafana.example/d/test?var-experiment=" + FIRST + "&kiosk=1");
     }
 
     @Test
     void supportsEncodedPlaceholderAndPreservesEncodedVariableName() {
         assertThat(GrafanaUrl.fromTemplate(
                 "https://grafana.example/d/test?var-run%5Fid=%7BrunId%7D", List.of(FIRST, SECOND)))
-                .isEqualTo("https://grafana.example/d/test?var-run%5Fid=" + FIRST + "&var-run%5Fid=" + SECOND + "&kiosk");
+                .isEqualTo("https://grafana.example/d/test?var-run%5Fid=" + FIRST + "&var-run%5Fid=" + SECOND + "&kiosk=1");
     }
 
     @Test
@@ -52,14 +52,14 @@ class GrafanaUrlTest {
         assertThat(GrafanaUrl.fromTemplate(
                 "https://grafana.example/d/test?var-first={runId}&x=1&var-second={runId}", List.of(FIRST, SECOND)))
                 .isEqualTo("https://grafana.example/d/test?var-first=" + FIRST + "&var-first=" + SECOND
-                        + "&x=1&var-second=" + FIRST + "&var-second=" + SECOND + "&kiosk");
+                        + "&x=1&var-second=" + FIRST + "&var-second=" + SECOND + "&kiosk=1");
     }
 
     @Test
     void preservesEmptyQueryComponentsAndEmptyFragment() {
         assertThat(GrafanaUrl.fromTemplate(
                 "https://grafana.example/d/test?&var-run_id={runId}&&x=&flag#", List.of(FIRST)))
-                .isEqualTo("https://grafana.example/d/test?&var-run_id=" + FIRST + "&&x=&flag&kiosk#");
+                .isEqualTo("https://grafana.example/d/test?&var-run_id=" + FIRST + "&&x=&flag&kiosk=1#");
     }
 
     @Test
@@ -68,7 +68,7 @@ class GrafanaUrlTest {
                 "https://grafana.example/d/test?kiosk=tv&var-run_id={runId}&kiosk=other&filter=a%2Bb",
                 List.of(FIRST, SECOND)))
                 .isEqualTo("https://grafana.example/d/test?var-run_id=" + FIRST + "&var-run_id=" + SECOND
-                        + "&filter=a%2Bb&kiosk");
+                        + "&filter=a%2Bb&kiosk=1");
     }
 
     @Test
@@ -79,17 +79,17 @@ class GrafanaUrlTest {
     @ParameterizedTest
     @ValueSource(strings = {"https://grafana.example/d/test", "https://grafana.example/d/test?"})
     void addsKioskToLinksWithoutQueryParameters(String url) {
-        assertThat(GrafanaUrl.withKiosk(url)).isEqualTo("https://grafana.example/d/test?kiosk");
+        assertThat(GrafanaUrl.withKiosk(url)).isEqualTo("https://grafana.example/d/test?kiosk=1");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "kiosk", "kiosk=", "kiosk=tv", "kiosk=other", "kiosk=tv&kiosk=other",
+            "kiosk", "kiosk=", "kiosk=1", "kiosk=tv", "kiosk=other", "kiosk=tv&kiosk=other",
             "kiosk&kiosk=&kiosk=tv", "%6Biosk=tv"
     })
     void normalizesAnyKioskValueAndDuplicates(String query) {
         assertThat(GrafanaUrl.withKiosk("https://grafana.example/d/test?" + query + "#panel%2Fone"))
-                .isEqualTo("https://grafana.example/d/test?kiosk#panel%2Fone");
+                .isEqualTo("https://grafana.example/d/test?kiosk=1#panel%2Fone");
     }
 
     @Test
@@ -97,7 +97,7 @@ class GrafanaUrlTest {
         String original = "https://grafana.example/d/test?from=now-1h&kiosk=tv&var-source=a%2Fb%20c"
                 + "&var-source=x+y&filter=key%3Dvalue%26other%3D%2520&kiosk=other&to=now#panel%2Fone";
         String expected = "https://grafana.example/d/test?from=now-1h&var-source=a%2Fb%20c"
-                + "&var-source=x+y&filter=key%3Dvalue%26other%3D%2520&to=now&kiosk#panel%2Fone";
+                + "&var-source=x+y&filter=key%3Dvalue%26other%3D%2520&to=now&kiosk=1#panel%2Fone";
 
         assertThat(GrafanaUrl.withKiosk(original)).isEqualTo(expected);
         assertThat(GrafanaUrl.withKiosk(expected)).isEqualTo(expected);
@@ -106,9 +106,9 @@ class GrafanaUrlTest {
     @Test
     void insertsKioskBeforeFragmentEvenWhenFragmentContainsQuestionMark() {
         assertThat(GrafanaUrl.withKiosk("https://grafana.example/d/test#panel?kiosk=tv"))
-                .isEqualTo("https://grafana.example/d/test?kiosk#panel?kiosk=tv");
+                .isEqualTo("https://grafana.example/d/test?kiosk=1#panel?kiosk=tv");
         assertThat(GrafanaUrl.withKiosk("https://grafana.example/d/test?#"))
-                .isEqualTo("https://grafana.example/d/test?kiosk#");
+                .isEqualTo("https://grafana.example/d/test?kiosk=1#");
     }
 
     @ParameterizedTest
