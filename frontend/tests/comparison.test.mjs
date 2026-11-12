@@ -38,14 +38,16 @@ test('old runs with missing metadata cannot be treated as compatible', () => {
   }
 })
 
-test('completed comparison covers all runs regardless of history order and preserves backend-selected IDs', () => {
+test('completed comparison aligns starts and preserves backend-selected IDs regardless of history order', () => {
   const url = new URL(getExperimentComparisonGrafanaUrl(comparisonUrl, [second, first]))
-  assert.equal(url.searchParams.get('from'), String(Date.parse(first.createdAt) - 5000))
+  assert.equal(url.searchParams.get('from'), String(Date.parse(second.createdAt) - 5000))
   assert.equal(url.searchParams.get('to'), String(Date.parse(second.updatedAt) + 10_000))
   assert.deepEqual(url.searchParams.getAll('var-run_id'), ['run-a', 'run-b'])
   assert.equal(url.searchParams.get('kiosk'), '1')
   assert.equal(url.hash, '#panel-4')
   assert.equal(url.searchParams.has('refresh'), false)
+  assert.match(url.searchParams.get('var-run_offsets'), /vector\(3600000\).*"run-a"/)
+  assert.match(url.searchParams.get('var-run_offsets'), /vector\(0\).*"run-b"/)
 })
 
 test('comparison refreshes while any run is active and stops after the last run finishes or fails', () => {
@@ -55,11 +57,26 @@ test('comparison refreshes while any run is active and stops after the last run 
   assert.equal(url.searchParams.get('from'), String(Date.parse(first.createdAt) - 5000))
   assert.equal(url.searchParams.get('to'), 'now')
   assert.equal(url.searchParams.get('refresh'), '1s')
+  assert.doesNotMatch(url.searchParams.get('var-run_offsets'), /vector\([1-9]/)
   assert.equal(getExperimentComparisonGrafanaUrl(comparisonUrl, [first, { ...active, updatedAt: '2026-11-11T12:00:55Z' }]), liveUrl)
 
   const finished = new URL(getExperimentComparisonGrafanaUrl(comparisonUrl, [first, { ...active, state: 'FAILED' }]))
   assert.equal(finished.searchParams.get('to'), String(Date.parse(second.updatedAt) + 10_000))
   assert.equal(finished.searchParams.has('refresh'), false)
+})
+
+test('alignment keeps the complete longest run even when it started earlier', () => {
+  const longer = { ...first, updatedAt: '2026-11-11T11:02:00Z' }
+  const url = new URL(getExperimentComparisonGrafanaUrl(comparisonUrl, [longer, second]))
+  assert.equal(url.searchParams.get('from'), String(Date.parse(second.createdAt) - 5000))
+  assert.equal(url.searchParams.get('to'), String(Date.parse(second.createdAt) + 120_000 + 10_000))
+})
+
+test('simultaneous starts keep separate run IDs with zero offsets', () => {
+  const simultaneous = { ...second, createdAt: first.createdAt, updatedAt: first.updatedAt }
+  const url = new URL(getExperimentComparisonGrafanaUrl(comparisonUrl, [first, simultaneous]))
+  assert.match(url.searchParams.get('var-run_offsets'), /vector\(0\).*"run-a".*vector\(0\).*"run-b"/)
+  assert.equal(url.searchParams.get('from'), String(Date.parse(first.createdAt) - 5000))
 })
 
 test('comparison refuses missing runs, invalid timestamps and invalid Grafana URLs', () => {

@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 9,
+  "version": 12,
   "editable": true,
   "refresh": "",
   "time": {
@@ -56,6 +56,40 @@
         "hide": 0,
         "multi": true,
         "includeAll": false
+      },
+      {
+        "name": "run_offsets",
+        "type": "textbox",
+        "hide": 2,
+        "query": "vector(0)",
+        "current": {
+          "text": "vector(0)",
+          "value": "vector(0)"
+        }
+      },
+      {
+        "name": "run_window",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+          "refId": "run_window"
+        },
+        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+        "regex": "/run_id=\"(?<value>${run_id:regex})\".*?\\s+(?<text>[0-9]+)/",
+        "refresh": 1,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "skipUrlSync": true
       }
     ]
   },
@@ -82,7 +116,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (run_id, settings, scenario, params) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[$__range]))",
+          "expr": "max by (run_id, settings, scenario, params) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[30d]))",
           "format": "table",
           "instant": true,
           "legendFormat": ""
@@ -125,7 +159,7 @@
     },
     {
       "type": "row",
-      "title": "Ход запуска",
+      "title": "Запуск ${run_window:raw}",
       "id": 1,
       "collapsed": false,
       "gridPos": {
@@ -134,7 +168,9 @@
         "x": 0,
         "y": 5
       },
-      "panels": []
+      "panels": [],
+      "repeat": "run_window",
+      "repeatDirection": "v"
     },
     {
       "type": "state-timeline",
@@ -157,7 +193,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(sum by (run_id) ((dbehave_phase{run_id=~\"$run_id\",phase=\"STARTING\"} * 1) or (dbehave_phase{run_id=~\"$run_id\",phase=\"PREPARING\"} * 2) or (dbehave_phase{run_id=~\"$run_id\",phase=\"WARMUP\"} * 3) or (dbehave_phase{run_id=~\"$run_id\",phase=\"LOAD\"} * 4) or (dbehave_phase{run_id=~\"$run_id\",phase=\"VERIFYING\"} * 5) or (dbehave_phase{run_id=~\"$run_id\",phase=\"DONE\"} * 6) or (dbehave_phase{run_id=~\"$run_id\",phase=\"FAILED\"} * 7)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(sum by (run_id) ((dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"STARTING\"} offset ${run_window:text}ms * 1) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"PREPARING\"} offset ${run_window:text}ms * 2) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"WARMUP\"} offset ${run_window:text}ms * 3) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"LOAD\"} offset ${run_window:text}ms * 4) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"VERIFYING\"} offset ${run_window:text}ms * 5) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"DONE\"} offset ${run_window:text}ms * 6) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"FAILED\"} offset ${run_window:text}ms * 7)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}}"
         }
       ],
@@ -248,7 +284,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(last_over_time(dbehave_progress_percent{run_id=~\"$run_id\"}[$__range]), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(last_over_time(dbehave_progress_percent{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}}",
           "instant": true
         }
@@ -318,7 +354,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(max_over_time(dbehave_clients_active{run_id=~\"$run_id\"}[$__range]), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}}",
           "instant": true
         }
@@ -376,7 +412,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_errors_total{run_id=~\"$run_id\"}[$__range])) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"$run_id\"}[$__range])), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}}",
           "instant": true
         }
@@ -426,17 +462,20 @@
       "description": "Суммарное число ошибок по всем операциям каждого запуска за выбранный период. Ноль выводится только для запусков с измерениями нагрузчика."
     },
     {
-      "type": "row",
-      "title": "Клиенты",
+      "type": "text",
+      "title": "",
       "id": 6,
-      "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 14
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Клиенты</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -450,7 +489,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 16
       },
       "targets": [
         {
@@ -459,7 +498,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{op}}"
         }
       ],
@@ -500,7 +539,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 16
       },
       "targets": [
         {
@@ -509,7 +548,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · p50 {{op}}"
         },
         {
@@ -518,7 +557,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · p95 {{op}}"
         },
         {
@@ -527,7 +566,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · p99 {{op}}"
         }
       ],
@@ -567,7 +606,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 23
+        "y": 24
       },
       "targets": [
         {
@@ -576,7 +615,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{op}}: {{kind}}"
         }
       ],
@@ -617,7 +656,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 23
+        "y": 24
       },
       "targets": [
         {
@@ -626,7 +665,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{name}}"
         },
         {
@@ -635,7 +674,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_scenario_value{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_scenario_value{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{name}}"
         }
       ],
@@ -675,7 +714,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 32
       },
       "targets": [
         {
@@ -684,7 +723,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(rate(dbehave_records_written_total{run_id=~\"$run_id\"}[$__rate_interval]), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}}"
         }
       ],
@@ -711,17 +750,20 @@
       "description": "Строки в успешно подтверждённых пачках write-heavy"
     },
     {
-      "type": "row",
-      "title": "PostgreSQL",
+      "type": "text",
+      "title": "",
       "id": 11,
-      "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 40
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">PostgreSQL</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -735,7 +777,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 40
+        "y": 42
       },
       "targets": [
         {
@@ -744,7 +786,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_connections{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_connections{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{state}}"
         },
         {
@@ -753,7 +795,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_lock_waiters{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_lock_waiters{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · ждут блокировку"
         }
       ],
@@ -792,7 +834,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 40
+        "y": 42
       },
       "targets": [
         {
@@ -801,7 +843,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_lock_wait_max_seconds{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_lock_wait_max_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · самое долгое ожидание блокировки"
         },
         {
@@ -810,7 +852,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_oldest_transaction_seconds{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_oldest_transaction_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · возраст старейшей транзакции"
         }
       ],
@@ -850,7 +892,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 40
+        "y": 42
       },
       "targets": [
         {
@@ -859,7 +901,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{result}}"
         }
       ],
@@ -899,7 +941,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 48
+        "y": 50
       },
       "targets": [
         {
@@ -908,7 +950,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"$run_id\",source=\"hit\"}[$__rate_interval])) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\",source=\"hit\"}[$__rate_interval] offset ${run_window:text}ms)) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · cache hit"
         }
       ],
@@ -950,7 +992,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 48
+        "y": 50
       },
       "targets": [
         {
@@ -959,7 +1001,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((rate(dbehave_db_wal_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((rate(dbehave_db_wal_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · WAL, байт/с"
         },
         {
@@ -968,7 +1010,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · чекпоинты"
         }
       ],
@@ -1029,7 +1071,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 48
+        "y": 50
       },
       "targets": [
         {
@@ -1038,7 +1080,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((rate(dbehave_db_temp_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((rate(dbehave_db_temp_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · байт/с на диск"
         }
       ],
@@ -1079,7 +1121,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 58
       },
       "targets": [
         {
@@ -1088,7 +1130,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_tuples{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_tuples{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{state}}"
         }
       ],
@@ -1128,7 +1170,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 58
       },
       "targets": [
         {
@@ -1137,7 +1179,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((increase(dbehave_db_deadlocks_total{run_id=~\"$run_id\"}[$__rate_interval])), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((increase(dbehave_db_deadlocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · deadlocks"
         }
       ],
@@ -1165,31 +1207,34 @@
       }
     },
     {
-      "type": "row",
-      "title": "Проверки после нагрузки",
+      "type": "text",
+      "title": "",
       "id": 20,
-      "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 64
+        "y": 66
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Проверки после нагрузки</h2></div>"
+      }
     },
     {
       "type": "stat",
-      "title": "Результат проверки",
+      "title": "Итог проверки данных",
       "id": 21,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
+        "h": 3,
+        "w": 24,
         "x": 0,
-        "y": 65
+        "y": 68
       },
       "targets": [
         {
@@ -1198,50 +1243,75 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_check_passed{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
-          "legendFormat": "Запуск {{run}} · {{check}}"
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_passed{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Неповторяемое чтение\", \"check\", \"non-repeatable-read\"), \"measure\", \"Потерянное обновление\", \"check\", \"lost-update\"), \"measure\", \"Перекос записи\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "noValue": "Нет итоговой проверки",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
           "mappings": [
             {
               "type": "value",
               "options": {
-                "1": {
-                  "text": "Аномалий нет",
-                  "color": "green"
+                "-1": {
+                  "text": "Нет итоговой проверки",
+                  "color": "gray"
                 },
                 "0": {
-                  "text": "Найдены аномалии",
+                  "text": "Обнаружены аномалии",
                   "color": "red"
+                },
+                "1": {
+                  "text": "Аномалий не обнаружено",
+                  "color": "green"
                 }
               }
             }
-          ],
-          "noValue": "—"
+          ]
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
-        "textMode": "value_and_name"
-      }
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 24
+        }
+      },
+      "description": "Показывает результат итоговой проверки сценария. Отсутствие проверки не означает успешное прохождение."
     },
     {
-      "type": "stat",
-      "title": "Ожидалось / получено / аномалий",
       "id": 22,
+      "type": "stat",
+      "title": "Ожидалось без аномалий",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 16,
-        "x": 8,
-        "y": 65
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 71
       },
+      "description": "Для неповторяемого чтения — число завершённых читающих транзакций. Ожидается, что в каждой из них оба SELECT дадут одинаковый результат. В других проверках единица измерения указана под заголовком.",
       "targets": [
         {
           "refId": "A",
@@ -1249,33 +1319,287 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_check_value{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
-          "legendFormat": "Запуск {{run}} · {{check}}: {{kind}}"
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_value{run_id=~\"${run_window:regex}\",kind=\"expected\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Транзакций с повторным чтением\", \"check\", \"non-repeatable-read\"), \"measure\", \"Увеличений счётчиков\", \"check\", \"lost-update\"), \"measure\", \"Смен с дежурным врачом\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "—"
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
       "options": {
-        "textMode": "value_and_name"
-      },
-      "description": "lost-update: успешные коммиты и сумма счётчиков; write-skew: смены; non-repeatable-read: читающие транзакции"
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
     },
     {
-      "type": "row",
-      "title": "Ресурсы контейнеров задания",
-      "id": 23,
-      "collapsed": false,
+      "id": 29,
+      "type": "stat",
+      "title": "Получено без аномалий",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
+        "h": 4,
+        "w": 6,
+        "x": 6,
         "y": 71
       },
-      "panels": []
+      "description": "Для неповторяемого чтения — число читающих транзакций, в которых два чтения дали одинаковые значения. Это результат проверки данных, а не общее число COMMIT.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_value{run_id=~\"${run_window:regex}\",kind=\"actual\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Транзакций с повторным чтением\", \"check\", \"non-repeatable-read\"), \"measure\", \"Увеличений счётчиков\", \"check\", \"lost-update\"), \"measure\", \"Смен с дежурным врачом\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "stat",
+      "title": "Обнаружено аномалий",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 71
+      },
+      "description": "Для неповторяемого чтения — число читающих транзакций, в которых одинаковый SELECT дважды вернул разные значения. Ноль означает, что среди завершённых проверок аномалии не найдены.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_value{run_id=~\"${run_window:regex}\",kind=\"anomalies\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Несовпадений двух чтений\", \"check\", \"non-repeatable-read\"), \"measure\", \"Потерянных увеличений\", \"check\", \"lost-update\"), \"measure\", \"Смен без дежурных\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Транзакции с COMMIT",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 71
+      },
+      "description": "Для сценариев изоляции — число транзакций нагрузчика, завершившихся без SQL-ошибки. Включает читающие и пишущие транзакции, в том числе с аномалиями. Служебные запросы сборщика статистики не учитываются. Счётчик включает прогрев.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_operations_total{run_id=~\"${run_window:regex}\",op=~\"transaction|read_transaction|write\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * last_over_time(dbehave_check_passed{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Чтение и запись · включая аномалии\", \"run_id\", \".*\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "id": 23,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 75
+      },
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Ресурсы контейнеров задания</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -1289,7 +1613,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 77
       },
       "targets": [
         {
@@ -1298,7 +1622,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{role}}"
         }
       ],
@@ -1336,7 +1660,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 72
+        "y": 77
       },
       "targets": [
         {
@@ -1345,7 +1669,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_worker_container_memory_bytes{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{role}} used"
         },
         {
@@ -1354,7 +1678,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_worker_container_memory_limit_bytes{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{role}} limit"
         }
       ],
@@ -1393,7 +1717,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 85
       },
       "targets": [
         {
@@ -1402,7 +1726,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{role}} read"
         },
         {
@@ -1411,7 +1735,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{role}} write"
         }
       ],
@@ -1449,7 +1773,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 80
+        "y": 85
       },
       "targets": [
         {
@@ -1458,7 +1782,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_worker_container_pids{run_id=~\"$run_id\"}), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
           "legendFormat": "Запуск {{run}} · {{role}}"
         }
       ],

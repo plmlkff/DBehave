@@ -3,11 +3,16 @@ import { Panel } from '@/shared/ui/panel'
 import { configurationSections } from '../model/configuration'
 import styles from './run-configuration.module.css'
 
-export function RunConfiguration({ configuration }: { configuration: ExperimentRequest | null }) {
+type RunConfigurationProps = {
+  configuration: ExperimentRequest | null
+  title?: string
+}
+
+export function RunConfiguration({ configuration, title = 'Параметры запуска' }: RunConfigurationProps) {
   return (
     <Panel>
       <details className={styles.configuration}>
-        <summary>Параметры запуска</summary>
+        <summary>{title}</summary>
         {configuration ? (
           <div className={styles.sections}>
             {configurationSections(configuration).map(section => (

@@ -12,6 +12,7 @@
 .state[data-error='true'] { color: var(--color-danger); border-color: #ff92924d; }
 .runId { color: var(--color-accent); font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
 .runId:hover { text-decoration: underline; }
+.configurations { display: grid; gap: var(--space-4); }
 .loadError { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
 .loadError p { color: var(--color-danger); }
 .grafanaFrame { display: block; width: 100%; height: min(78vh, 900px); min-height: 560px; margin-top: var(--space-4); border: 0; background: var(--color-surface); }

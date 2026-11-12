@@ -10,6 +10,7 @@ import { routes } from '@/shared/config/routes'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel } from '@/shared/ui/panel'
+import { RunConfiguration } from '@/widgets/run-configuration'
 import styles from './experiment-comparison-page.module.css'
 
 export function ExperimentComparisonPage() {
@@ -26,7 +27,7 @@ export function ExperimentComparisonPage() {
       <PageHeader
         eyebrow="Эксперименты / Сравнение"
         title="Сравнение запусков"
-        description="Параметры и графики выбранных экспериментов на общей временной шкале."
+        description="Параметры и графики выбранных экспериментов. Завершённые запуски совмещены по времени создания."
         actions={(
           <Link className={styles.backLink} to={`${routes.experiments}?${historyQuery}`}>
             <ArrowLeft size={16} aria-hidden="true" /> История запусков
@@ -63,10 +64,19 @@ export function ExperimentComparisonPage() {
               ))}
             </ul>
           </Panel>
+          <div className={styles.configurations} aria-label="Параметры выбранных запусков">
+            {data.runs.map((run, index) => (
+              <RunConfiguration
+                key={run.id}
+                configuration={run.configuration}
+                title={`Параметры запуска ${index + 1} · ${run.id.slice(0, 8)}`}
+              />
+            ))}
+          </div>
           <Panel aria-labelledby="comparison-charts-title">
             <div className={styles.sectionHeading}>
               <h2 id="comparison-charts-title">Графики сравнения</h2>
-              <p className={styles.notice}>{active ? 'Статусы и графики обновляются автоматически.' : 'Все выбранные запуски завершены. Период графиков зафиксирован.'}</p>
+              <p className={styles.notice}>{active ? 'Статусы и графики обновляются автоматически.' : 'Начала запусков совмещены. Даты на оси — общая шкала сравнения.'}</p>
             </div>
             {grafanaUrl ? (
               <>

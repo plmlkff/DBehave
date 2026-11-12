@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { configurationSections, configurationValue } from '../src/pages/experiment-run/model/configuration.ts'
+import { configurationSections, configurationValue } from '../src/widgets/run-configuration/model/configuration.ts'
 
 test('snapshot sections preserve actual settings, scenario values and effective resource limits', () => {
   const configuration = {
