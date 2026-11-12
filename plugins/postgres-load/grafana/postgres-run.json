@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 8,
+  "version": 9,
   "editable": true,
   "refresh": "",
   "time": {
@@ -47,10 +47,10 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(dbehave_phase, run_id)",
+          "query": "label_values(dbehave_run_info{engine=\"postgres\"}, run_id)",
           "refId": "run_id"
         },
-        "definition": "label_values(dbehave_phase, run_id)",
+        "definition": "label_values(dbehave_run_info{engine=\"postgres\"}, run_id)",
         "refresh": 1,
         "sort": 4,
         "hide": 0,
@@ -664,6 +664,53 @@
       "description": "Повторы транзакций, неповторяемые чтения, удержание блокировки (blocker_holding = 1)"
     },
     {
+      "type": "timeseries",
+      "title": "Подтверждённые записи в секунду",
+      "id": 33,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(rate(dbehave_records_written_total{run_id=~\"$run_id\"}[$__rate_interval]), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Строки в успешно подтверждённых пачках write-heavy"
+    },
+    {
       "type": "row",
       "title": "PostgreSQL",
       "id": 11,
@@ -672,7 +719,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 39
       },
       "panels": []
     },
@@ -688,7 +735,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 32
+        "y": 40
       },
       "targets": [
         {
@@ -745,7 +792,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 32
+        "y": 40
       },
       "targets": [
         {
@@ -803,7 +850,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 32
+        "y": 40
       },
       "targets": [
         {
@@ -852,7 +899,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "targets": [
         {
@@ -903,7 +950,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 40
+        "y": 48
       },
       "targets": [
         {
@@ -982,7 +1029,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 40
+        "y": 48
       },
       "targets": [
         {
@@ -1032,7 +1079,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 56
       },
       "targets": [
         {
@@ -1081,7 +1128,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 56
       },
       "targets": [
         {
@@ -1126,7 +1173,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 64
       },
       "panels": []
     },
@@ -1142,7 +1189,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 57
+        "y": 65
       },
       "targets": [
         {
@@ -1193,7 +1240,7 @@
         "h": 6,
         "w": 16,
         "x": 8,
-        "y": 57
+        "y": 65
       },
       "targets": [
         {
@@ -1226,7 +1273,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 63
+        "y": 71
       },
       "panels": []
     },
@@ -1242,7 +1289,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 64
+        "y": 72
       },
       "targets": [
         {
@@ -1289,7 +1336,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 64
+        "y": 72
       },
       "targets": [
         {
@@ -1346,7 +1393,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 80
       },
       "targets": [
         {
@@ -1402,7 +1449,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 72
+        "y": 80
       },
       "targets": [
         {

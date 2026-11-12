@@ -1,5 +1,7 @@
 package io.dbehave.plugin.postgres.load;
 
+import io.dbehave.plugin.load.RunState;
+
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 

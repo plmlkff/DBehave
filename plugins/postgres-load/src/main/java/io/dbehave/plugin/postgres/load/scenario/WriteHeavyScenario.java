@@ -59,14 +59,17 @@ final class WriteHeavyScenario implements Scenario {
             return new ClientSession() {
                 @Override
                 public void step() {
-                    ctx.metrics().measure("insert", () -> Db.inTransaction(connection, () -> {
-                        for (int row = 0; row < batchSize; row++) {
-                            insert.setInt(row * 3 + 1, clientIndex);
-                            insert.setInt(row * 3 + 2, random.nextInt(100));
-                            insert.setString(row * 3 + 3, payload);
-                        }
-                        insert.executeUpdate();
-                    }));
+                    ctx.metrics().measure("insert", () -> {
+                        Db.inTransaction(connection, () -> {
+                            for (int row = 0; row < batchSize; row++) {
+                                insert.setInt(row * 3 + 1, clientIndex);
+                                insert.setInt(row * 3 + 2, random.nextInt(100));
+                                insert.setString(row * 3 + 3, payload);
+                            }
+                            insert.executeUpdate();
+                        });
+                        ctx.metrics().recordsWritten("insert", batchSize);
+                    });
                 }
 
                 @Override

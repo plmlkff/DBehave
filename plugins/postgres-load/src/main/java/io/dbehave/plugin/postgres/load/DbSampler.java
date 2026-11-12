@@ -1,5 +1,6 @@
 package io.dbehave.plugin.postgres.load;
 
+import io.dbehave.plugin.load.Log;
 import io.prometheus.metrics.core.metrics.Counter;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;

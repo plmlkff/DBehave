@@ -5,3 +5,7 @@ providers:
     folder: DBehave
     options:
       path: /var/lib/grafana/dashboards/worker
+  - name: dbehave-mongo
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards/mongo

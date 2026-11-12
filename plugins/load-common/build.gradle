@@ -1,0 +1,8 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api 'io.prometheus:prometheus-metrics-core:1.10.0'
+    implementation 'io.prometheus:prometheus-metrics-exposition-textformats:1.10.0'
+}

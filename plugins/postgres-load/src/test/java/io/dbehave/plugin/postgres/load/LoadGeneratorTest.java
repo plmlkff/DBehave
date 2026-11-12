@@ -1,5 +1,7 @@
 package io.dbehave.plugin.postgres.load;
 
+import io.dbehave.plugin.load.HttpEndpoints;
+import io.dbehave.plugin.load.RunState;
 import io.dbehave.plugin.postgres.load.scenario.Scenarios;
 import io.prometheus.metrics.expositionformats.PrometheusTextFormatWriter;
 import org.junit.jupiter.api.Test;
