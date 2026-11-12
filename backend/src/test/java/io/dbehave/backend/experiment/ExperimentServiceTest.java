@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,6 +39,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 class ExperimentServiceTest {
+    private static final AtomicLong IDS = new AtomicLong(100);
     @Test
     void rejectsExtremePostgresNumbersBeforeTheCollectorCanExpandThem() {
         var definition = postgresWithUnboundedNumbers(BigDecimal.ONE);
@@ -82,9 +83,9 @@ class ExperimentServiceTest {
         var repository = mock(PluginRepository.class);
         when(repository.findById("postgres")).thenReturn(Optional.of(original), Optional.of(changed));
         var tasks = mock(TaskRepository.class);
-        when(tasks.insert(any(UUID.class), any(ExecutionContext.class))).thenAnswer(invocation -> new WorkerTask(
-                invocation.getArgument(0), "QUEUED", Instant.EPOCH, Instant.EPOCH,
-                invocation.getArgument(1), null, null, null));
+        when(tasks.insert(any(ExecutionContext.class))).thenAnswer(invocation -> new WorkerTask(
+                IDS.incrementAndGet(), "QUEUED", Instant.EPOCH, Instant.EPOCH,
+                invocation.getArgument(0), null, null, null));
         var service = new ExperimentService(new PluginRegistry(repository, List.of(new PostgresContextCollector()), mock(JsonbValidation.class)), tasks, mock(JsonbValidation.class));
 
         var created = service.start(new ExperimentRequest("postgres", "mixed", null, null));
@@ -137,8 +138,8 @@ class ExperimentServiceTest {
         var tasks = mock(TaskRepository.class);
         var registry = mock(PluginRegistry.class);
         var service = new ExperimentService(registry, tasks, mock(JsonbValidation.class));
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         String template = "https://grafana.test/d/board?var-run_id={runId}&from=now-1h#panel";
         when(tasks.findExperimentsByIds(List.of(first, second))).thenReturn(List.of(
                 run(second, "second-plugin", "mixed", template), run(first, "first-plugin", "mixed", template)));
@@ -153,7 +154,7 @@ class ExperimentServiceTest {
     void rejectsInvalidSelectionsBeforeReadingOrHidingHistory() {
         var tasks = mock(TaskRepository.class);
         var service = new ExperimentService(mock(PluginRegistry.class), tasks, mock(JsonbValidation.class));
-        List<List<UUID>> invalid = Arrays.asList(null, List.of(), Arrays.asList(UUID.randomUUID(), null));
+        List<List<Long>> invalid = Arrays.asList(null, List.of(), Arrays.asList(IDS.incrementAndGet(), null));
         for (var ids : invalid) {
             assertThatThrownBy(() -> service.compare(ids)).isInstanceOf(InvalidExperimentException.class);
             assertThatThrownBy(() -> service.hideSelected(ids)).isInstanceOf(InvalidExperimentException.class);
@@ -165,7 +166,7 @@ class ExperimentServiceTest {
     void returnsNotFoundWhenAnyComparedRunIsMissingOrHidden() {
         var tasks = mock(TaskRepository.class);
         var service = new ExperimentService(mock(PluginRegistry.class), tasks, mock(JsonbValidation.class));
-        var id = UUID.randomUUID();
+        var id = IDS.incrementAndGet();
         when(tasks.findExperimentsByIds(List.of(id))).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.compare(List.of(id)))
@@ -177,8 +178,8 @@ class ExperimentServiceTest {
     void rejectsMissingMetadataMismatchesAndUnsupportedDashboardTemplates() {
         var tasks = mock(TaskRepository.class);
         var service = new ExperimentService(mock(PluginRegistry.class), tasks, mock(JsonbValidation.class));
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         String template = "https://grafana.test/?var-run_id={runId}";
         var baseline = run(first, "postgres", "mixed", template);
         for (var other : List.of(
@@ -198,7 +199,7 @@ class ExperimentServiceTest {
     void hidesRunsIdempotentlyAndClearsHistoryThroughTombstones() {
         var tasks = mock(TaskRepository.class);
         var service = new ExperimentService(mock(PluginRegistry.class), tasks, mock(JsonbValidation.class));
-        var id = UUID.randomUUID();
+        var id = IDS.incrementAndGet();
         when(tasks.hideExperiment(id)).thenReturn(true);
 
         service.hide(id);
@@ -207,7 +208,7 @@ class ExperimentServiceTest {
 
         verify(tasks, times(2)).hideExperiment(id);
         verify(tasks).hideAllExperiments();
-        assertThatThrownBy(() -> service.hide(UUID.randomUUID()))
+        assertThatThrownBy(() -> service.hide(IDS.incrementAndGet()))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         failure -> assertThat(failure.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
@@ -216,8 +217,8 @@ class ExperimentServiceTest {
     void locksAllSelectedTasksBeforeHidingThemAndDeduplicatesIds() {
         var tasks = mock(TaskRepository.class);
         var service = new ExperimentService(mock(PluginRegistry.class), tasks, mock(JsonbValidation.class));
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         when(tasks.lockTaskIds(List.of(first, second))).thenReturn(List.of(second, first));
 
         service.hideSelected(List.of(first, second, first));
@@ -232,8 +233,8 @@ class ExperimentServiceTest {
     void doesNotHideAnyRunWhenTheSelectionContainsAnUnknownTask() {
         var tasks = mock(TaskRepository.class);
         var service = new ExperimentService(mock(PluginRegistry.class), tasks, mock(JsonbValidation.class));
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         when(tasks.lockTaskIds(List.of(first, second))).thenReturn(List.of(first));
 
         assertThatThrownBy(() -> service.hideSelected(List.of(first, second)))
@@ -340,10 +341,10 @@ class ExperimentServiceTest {
                 List.of(new Scenario("custom", "Custom", "", List.of(setting), List.of(parameter))));
     }
 
-    private static ExperimentRun run(UUID id, String pluginId, String scenarioId, String template) {
+    private static ExperimentRun run(Long id, String pluginId, String scenarioId, String template) {
         return new ExperimentRun(id, "DONE", Instant.EPOCH, Instant.EPOCH, null, null, null,
-                template == null ? null : template.replace("{runId}", id.toString()),
-                pluginId, "Plugin", scenarioId, "Scenario", null, template);
+                template == null ? null : template.replace("{runId}", String.valueOf(id)),
+                pluginId, "Plugin", scenarioId, "Scenario", null, template, String.valueOf(id));
     }
 
     @SuppressWarnings("unchecked")

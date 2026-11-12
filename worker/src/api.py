@@ -2,12 +2,11 @@ import secrets
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-import asyncpg
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.config import Settings
-from src.models import HealthView, TaskStatus, TaskSubmission, TaskView
+from src.models import HealthView, TaskStatus, TaskRequest, TaskView
 from src.repository import TaskRepository
 from src.scheduler import Worker
 
@@ -64,19 +63,14 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.post("/tasks", response_model=TaskView, status_code=status.HTTP_202_ACCEPTED)
-    async def submit_task(task: TaskSubmission, _: Auth) -> TaskView:
+    async def submit_task(task: TaskRequest, _: Auth) -> TaskView:
         if task.timeout_seconds > settings.max_task_timeout_seconds:
             raise HTTPException(
                 status_code=422,
                 detail=f"timeout_seconds cannot exceed {settings.max_task_timeout_seconds}",
             )
-        try:
-            await repository.create(task)
-        except asyncpg.UniqueViolationError as exc:
-            raise HTTPException(status_code=409, detail="Task ID already exists") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail="Task ID must be a UUID") from exc
-        record = await repository.get(task.id)
+        task_id = await repository.create(task)
+        record = await repository.get(task_id)
         assert record is not None
         return _to_view(record)
 

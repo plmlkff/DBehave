@@ -1,7 +1,6 @@
 package io.dbehave.backend.experiment;
 
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -10,8 +9,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GrafanaUrlTest {
-    private static final UUID FIRST = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private static final UUID SECOND = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    private static final String FIRST = "1";
+    private static final String SECOND = "2";
 
     @Test
     void repeatsGrafanaVariableForEachRunInInputOrder() {

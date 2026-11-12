@@ -9,7 +9,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.json.JsonMapper;
@@ -17,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Repository
 public class TaskRepository {
     private static final String EXPERIMENT_QUERY = """
-            SELECT task.id, task.state, task.created_at, task.updated_at,
+            SELECT task.id, COALESCE(task.legacy_run_id, task.id::text) AS metrics_id, task.state, task.created_at, task.updated_at,
                    task.heartbeat, task.worker_id, task.error,
                    experiment.grafana_url, experiment.plugin_id, experiment.plugin_title,
                    experiment.scenario_id, experiment.scenario_title,
@@ -39,22 +38,22 @@ public class TaskRepository {
         this.jsonb = jsonb;
     }
 
-    public WorkerTask insert(UUID id, ExecutionContext context) {
+    public WorkerTask insert(ExecutionContext context) {
         jsonb.validate(context, "context");
         return jdbc.queryForObject("""
-                INSERT INTO worker.tasks (id, state, context)
-                VALUES (?, 'QUEUED', CAST(? AS jsonb))
+                INSERT INTO worker.tasks (state, context)
+                VALUES ('QUEUED', CAST(? AS jsonb))
                 RETURNING *
-                """, this::readTask, id, json.writeValueAsString(context));
+                """, this::readTask, json.writeValueAsString(context));
     }
 
-    public Optional<WorkerTask> findById(UUID id) {
+    public Optional<WorkerTask> findById(Long id) {
         return jdbc.query("SELECT * FROM worker.tasks WHERE id = ?", this::readTask, id)
                 .stream().findFirst();
     }
 
     public void insertExperiment(
-            UUID id, String pluginId, String pluginTitle,
+            Long id, String pluginId, String pluginTitle,
             String scenarioId, String scenarioTitle, String grafanaUrl,
             ExperimentRequest configuration, String grafanaUrlTemplate
     ) {
@@ -68,14 +67,14 @@ public class TaskRepository {
                 json.writeValueAsString(configuration), grafanaUrlTemplate);
     }
 
-    public Optional<ExperimentRun> findExperimentById(UUID id) {
+    public Optional<ExperimentRun> findExperimentById(Long id) {
         return jdbc.query(EXPERIMENT_QUERY + " AND task.id = ?", this::readExperiment, id)
                 .stream().findFirst();
     }
 
-    public List<ExperimentRun> findExperimentsByIds(List<UUID> ids) {
+    public List<ExperimentRun> findExperimentsByIds(List<Long> ids) {
         return jdbc.query(EXPERIMENT_QUERY + " AND task.id = ANY (?)",
-                statement -> statement.setArray(1, statement.getConnection().createArrayOf("uuid", ids.toArray())),
+                statement -> statement.setArray(1, statement.getConnection().createArrayOf("bigint", ids.toArray())),
                 this::readExperiment);
     }
 
@@ -84,7 +83,7 @@ public class TaskRepository {
                 this::readExperiment);
     }
 
-    public boolean hideExperiment(UUID id) {
+    public boolean hideExperiment(Long id) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 WITH existing AS (
                     SELECT id FROM worker.tasks WHERE id = ? FOR KEY SHARE
@@ -97,19 +96,19 @@ public class TaskRepository {
                 """, Boolean.class, id));
     }
 
-    public List<UUID> lockTaskIds(List<UUID> ids) {
+    public List<Long> lockTaskIds(List<Long> ids) {
         return jdbc.query("SELECT id FROM worker.tasks WHERE id = ANY (?) ORDER BY id FOR KEY SHARE",
-                statement -> statement.setArray(1, statement.getConnection().createArrayOf("uuid", ids.toArray())),
-                (row, index) -> row.getObject("id", UUID.class));
+                statement -> statement.setArray(1, statement.getConnection().createArrayOf("bigint", ids.toArray())),
+                (row, index) -> row.getLong("id"));
     }
 
-    public void hideExperiments(List<UUID> ids) {
+    public void hideExperiments(List<Long> ids) {
         jdbc.update("""
                 INSERT INTO dbehave.hidden_experiments (task_id)
                 SELECT id FROM unnest(?) AS selected(id) ORDER BY id
                 ON CONFLICT (task_id) DO NOTHING
                 """, statement -> statement.setArray(1,
-                statement.getConnection().createArrayOf("uuid", ids.toArray())));
+                statement.getConnection().createArrayOf("bigint", ids.toArray())));
     }
 
     public void hideAllExperiments() {
@@ -129,7 +128,7 @@ public class TaskRepository {
         Timestamp heartbeat = row.getTimestamp("heartbeat");
         String configuration = row.getString("configuration");
         return new ExperimentRun(
-                row.getObject("id", UUID.class),
+                row.getLong("id"),
                 row.getString("state"),
                 row.getTimestamp("created_at").toInstant(),
                 row.getTimestamp("updated_at").toInstant(),
@@ -142,14 +141,15 @@ public class TaskRepository {
                 row.getString("scenario_id"),
                 row.getString("scenario_title"),
                 configuration == null ? null : json.readValue(configuration, ExperimentRequest.class),
-                row.getString("grafana_url_template")
+                row.getString("grafana_url_template"),
+                row.getString("metrics_id")
         );
     }
 
     private WorkerTask readTask(ResultSet row, int index) throws SQLException {
         Timestamp heartbeat = row.getTimestamp("heartbeat");
         return new WorkerTask(
-                row.getObject("id", UUID.class),
+                row.getLong("id"),
                 row.getString("state"),
                 row.getTimestamp("created_at").toInstant(),
                 row.getTimestamp("updated_at").toInstant(),

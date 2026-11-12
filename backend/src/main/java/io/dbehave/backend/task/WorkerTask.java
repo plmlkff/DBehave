@@ -1,10 +1,10 @@
 package io.dbehave.backend.task;
 
 import java.time.Instant;
-import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 public record WorkerTask(
-        UUID id,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) Long id,
         String state,
         Instant createdAt,
         Instant updatedAt,

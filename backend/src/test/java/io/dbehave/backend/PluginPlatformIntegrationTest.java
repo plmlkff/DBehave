@@ -258,7 +258,7 @@ class PluginPlatformIntegrationTest {
         var originalRun = response(mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("pluginId", id, "scenarioId", "custom-scenario"))))
                 .andExpect(status().isCreated()).andReturn());
-        var originalRunId = UUID.fromString((String) originalRun.get("id"));
+        var originalRunId = Long.valueOf((String) originalRun.get("id"));
         var originalContext = persistedContext(originalRunId);
 
         plugin.put("title", "Updated plugin");
@@ -279,7 +279,7 @@ class PluginPlatformIntegrationTest {
         var nextRun = response(mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("pluginId", id, "scenarioId", "custom-scenario"))))
                 .andExpect(status().isCreated()).andReturn());
-        var nextContext = persistedContext(UUID.fromString((String) nextRun.get("id")));
+        var nextContext = persistedContext(Long.valueOf((String) nextRun.get("id")));
         assertThat(nextContext).containsEntry("databaseImageName", "example/database:2")
                 .containsEntry("loaderImageName", "example/load-v2:custom");
         assertThat(imageContext(nextContext, "loaderImageContext")).containsEntry("params", Map.of("rps", 300));
@@ -321,7 +321,7 @@ class PluginPlatformIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.state").value("QUEUED"))
                 .andReturn());
-        var runId = UUID.fromString((String) response.get("id"));
+        var runId = Long.valueOf((String) response.get("id"));
         assertThat(response.get("grafanaUrl"))
                 .isEqualTo("https://grafana.example.test/d/custom?var-run_id=" + runId + "&kiosk=1");
 
@@ -367,7 +367,7 @@ class PluginPlatformIntegrationTest {
 
         var result = response(mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
                         .content(body)).andExpect(status().isCreated()).andReturn());
-        var context = persistedContext(UUID.fromString((String) result.get("id")));
+        var context = persistedContext(Long.valueOf((String) result.get("id")));
         assertThat(imageContext(context, "databaseImageContext"))
                 .containsEntry("settings", Map.of("cacheSize", 64));
         assertThat(imageContext(context, "loaderImageContext"))
@@ -390,7 +390,7 @@ class PluginPlatformIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isCreated()).andReturn());
-        var context = persistedContext(UUID.fromString((String) result.get("id")));
+        var context = persistedContext(Long.valueOf((String) result.get("id")));
         assertThat(context.get("databaseImageName")).isEqualTo("postgres:18");
         assertThat(context.get("loaderImageName")).isEqualTo("dbehave/postgres-load:0.1.0");
         assertThat(imageContext(imageContext(context, "databaseImageContext"), "environment"))
@@ -414,7 +414,7 @@ class PluginPlatformIntegrationTest {
                         .content(json.writeValueAsString(Map.of(
                                 "pluginId", plugin.get("id"), "scenarioId", "custom-scenario"))))
                 .andExpect(status().isCreated()).andReturn());
-        var runId = UUID.fromString((String) created.get("id"));
+        var runId = Long.valueOf((String) created.get("id"));
         var queuedAt = jdbc.queryForObject("select updated_at from worker.tasks where id = ?", Timestamp.class, runId);
         jdbc.update("""
                 update worker.tasks
@@ -451,7 +451,7 @@ class PluginPlatformIntegrationTest {
                 .andExpect(jsonPath("$.scenarioTitle").value("Custom scenario"))
                 .andExpect(jsonPath("$.context").doesNotExist())
                 .andReturn());
-        var id = UUID.fromString((String) created.get("id"));
+        var id = Long.valueOf((String) created.get("id"));
 
         plugin.put("title", "Renamed plugin");
         plugin.put("grafanaUrlTemplate", "https://other.example.test/?run={runId}");
@@ -477,9 +477,8 @@ class PluginPlatformIntegrationTest {
 
     @Test
     void readsLegacyTasksWithNullDisplayMetadataAndLiveWorkerStatus() throws Exception {
-        var id = UUID.randomUUID();
-        tasks.insert(id, new ExecutionContext("legacy/load:1", "legacy/database:1",
-                Map.of(), Map.of("environment", Map.of("PASSWORD", "secret"))));
+        var id = tasks.insert(new ExecutionContext("legacy/load:1", "legacy/database:1",
+                Map.of(), Map.of("environment", Map.of("PASSWORD", "secret")))).id();
         jdbc.update("""
                 UPDATE worker.tasks SET state = 'FAILED', worker_id = 'legacy-worker',
                     heartbeat = CURRENT_TIMESTAMP, error = 'Legacy failure' WHERE id = ?
@@ -527,16 +526,17 @@ class PluginPlatformIntegrationTest {
     @Transactional
     void listsOnlyTheLatestHundredTasksInDeterministicOrder() throws Exception {
         var created = Timestamp.from(Instant.parse("2100-01-01T00:00:00Z"));
+        var ids = new java.util.ArrayList<Long>();
         for (int index = 1; index <= 105; index++) {
-            var id = new UUID(0, index);
-            tasks.insert(id, new ExecutionContext("legacy/load:1", "legacy/database:1", Map.of(), Map.of()));
+            var id = tasks.insert(new ExecutionContext("legacy/load:1", "legacy/database:1", Map.of(), Map.of())).id();
+            ids.add(id);
             jdbc.update("UPDATE worker.tasks SET created_at = ? WHERE id = ?", created, id);
         }
         mvc.perform(get("/api/experiments"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(100))
-                .andExpect(jsonPath("$[0].id").value(new UUID(0, 105).toString()))
-                .andExpect(jsonPath("$[99].id").value(new UUID(0, 6).toString()));
+                .andExpect(jsonPath("$[0].id").value(ids.get(104).toString()))
+                .andExpect(jsonPath("$[99].id").value(ids.get(5).toString()));
     }
 
     @Test
@@ -580,7 +580,7 @@ class PluginPlatformIntegrationTest {
         mvc.perform(post("/api/experiments").contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("pluginId", plugin.get("id"), "scenarioId", "missing-scenario"))))
                 .andExpect(status().isNotFound());
-        mvc.perform(get("/api/experiments/{id}", UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/experiments/{id}", Long.MAX_VALUE)).andExpect(status().isNotFound());
         mvc.perform(get("/api/plugins/missing-plugin")).andExpect(status().isNotFound());
         assertThat(taskCount()).isEqualTo(countBefore);
     }
@@ -711,12 +711,12 @@ class PluginPlatformIntegrationTest {
     @Transactional
     void removesOneRunFromHistoryWhilePreservingWorkerExecutionAndTimestamps() throws Exception {
         var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
-        UUID id = UUID.fromString((String) created.get("id"));
+        Long id = Long.valueOf((String) created.get("id"));
         var before = jdbc.queryForMap("SELECT * FROM worker.tasks WHERE id = ?", id);
 
         mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
         mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
-        mvc.perform(delete("/api/experiments/{id}", UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/experiments/{id}", Long.MAX_VALUE)).andExpect(status().isNotFound());
         mvc.perform(get("/api/experiments/{id}", id)).andExpect(status().isNotFound());
         mvc.perform(get("/api/experiments"))
                 .andExpect(jsonPath("$[*].id", not(hasItem(id.toString()))));
@@ -737,8 +737,8 @@ class PluginPlatformIntegrationTest {
     @Transactional
     void clearsTheEntireHistoryIncludingLegacyTasksBeyondTheFirstHundred() throws Exception {
         jdbc.update("""
-                INSERT INTO worker.tasks (id, state, context)
-                SELECT gen_random_uuid(), 'SUCCEEDED', CAST(? AS jsonb)
+                INSERT INTO worker.tasks (state, context)
+                SELECT 'SUCCEEDED', CAST(? AS jsonb)
                 FROM generate_series(1, 105)
                 """, json.writeValueAsString(Map.of(
                 "loaderImageName", "example/load:1", "databaseImageName", "example/database:1",
@@ -814,7 +814,7 @@ class PluginPlatformIntegrationTest {
 
             var run = startRun(Map.of("pluginId", "clickhouse", "scenarioId", scenarioId,
                     "params", Map.of(switchKey, false), "settings", Map.of("maxThreads", 1)));
-            UUID id = UUID.fromString((String) run.get("id"));
+            Long id = Long.valueOf((String) run.get("id"));
             var context = persistedContext(id);
             assertThat(context).containsEntry("databaseImageName", "clickhouse/clickhouse-server:25.8.4.13")
                     .containsEntry("loaderImageName", "dbehave/clickhouse-load:0.1.0");
@@ -868,7 +868,7 @@ class PluginPlatformIntegrationTest {
                 "params", Map.of("datasetRows", 100_000, "payloadBytes", 2048)));
         String dashboard = "http://localhost:3001/d/dbheave-mongo?var-run_id=";
         assertThat(mongo.get("grafanaUrl")).isEqualTo(dashboard + mongo.get("id") + "&kiosk=1");
-        var context = persistedContext(UUID.fromString((String) mongo.get("id")));
+        var context = persistedContext(Long.valueOf((String) mongo.get("id")));
         assertThat(context).containsEntry("databaseImageName", "mongo:8.0")
                 .containsEntry("loaderImageName", "dbehave/mongo-load:0.1.0");
         assertThat(imageContext(context, "databaseImageContext").get("command"))
@@ -895,13 +895,13 @@ class PluginPlatformIntegrationTest {
     void queuesMongoCompressionSettingsAndRejectsInvalidValues() throws Exception {
         var journal = startRun(Map.of("pluginId", "mongo", "scenarioId", "write-heavy",
                 "settings", Map.of("journalCompressor", "zstd")));
-        var journalContext = persistedContext(UUID.fromString((String) journal.get("id")));
+        var journalContext = persistedContext(Long.valueOf((String) journal.get("id")));
         assertThat(imageContext(journalContext, "databaseImageContext").get("command")).asList()
                 .contains("--wiredTigerJournalCompressor=zstd", "--wiredTigerCollectionBlockCompressor=snappy");
 
         var prefix = startRun(Map.of("pluginId", "mongo", "scenarioId", "array-index",
                 "settings", Map.of("prefixCompression", false)));
-        var prefixContext = persistedContext(UUID.fromString((String) prefix.get("id")));
+        var prefixContext = persistedContext(Long.valueOf((String) prefix.get("id")));
         assertThat(imageContext(prefixContext, "databaseImageContext").get("command")).asList()
                 .contains("--wiredTigerIndexPrefixCompression=false");
 
@@ -930,7 +930,7 @@ class PluginPlatformIntegrationTest {
     @Transactional
     void addsKioskToLegacyLinksWithoutChangingTheirSavedTemplate() throws Exception {
         var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
-        UUID id = UUID.fromString((String) created.get("id"));
+        Long id = Long.valueOf((String) created.get("id"));
         String savedUrl = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&kiosk=tv&filter=a%2Bb#panel";
         jdbc.update("UPDATE dbehave.experiments SET grafana_url = ? WHERE task_id = ?", savedUrl, id);
         String expected = "http://localhost:3001/d/dbehave-postgres?var-run_id=" + id + "&filter=a%2Bb&kiosk=1#panel";
@@ -954,7 +954,7 @@ class PluginPlatformIntegrationTest {
         String selection = json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), second.get("id"), first.get("id"))));
 
         mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), UUID.randomUUID())))))
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), Long.MAX_VALUE)))))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/experiments/{id}", first.get("id"))).andExpect(status().isOk());
 
@@ -982,8 +982,7 @@ class PluginPlatformIntegrationTest {
     @Test
     @Transactional
     void keepsLegacyTasksReadableAndDeletableWithoutInventingTheirOriginalInput() throws Exception {
-        UUID id = UUID.randomUUID();
-        tasks.insert(id, new ExecutionContext("example/load:1", "example/database:1", Map.of(), Map.of()));
+        Long id = tasks.insert(new ExecutionContext("example/load:1", "example/database:1", Map.of(), Map.of())).id();
 
         mvc.perform(get("/api/experiments/{id}", id))
                 .andExpect(status().isOk())
@@ -1006,7 +1005,7 @@ class PluginPlatformIntegrationTest {
                     .andExpect(status().isBadRequest());
         }
         var created = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
-        for (Object id : List.of(UUID.randomUUID().toString(), created.get("id"))) {
+        for (Object id : List.of(String.valueOf(Long.MAX_VALUE), created.get("id"))) {
             if (id.equals(created.get("id"))) {
                 mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
             }
@@ -1014,6 +1013,27 @@ class PluginPlatformIntegrationTest {
                             .content(json.writeValueAsString(Map.of("runIds", List.of(id)))))
                     .andExpect(status().isNotFound());
         }
+    }
+
+    @Test
+    @Transactional
+    void preservesHistoricalMetricLabelsInDetailsAndComparison() throws Exception {
+        var old = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        var recent = startRun(Map.of("pluginId", "postgres", "scenarioId", "mixed"));
+        var id = Long.valueOf((String) old.get("id"));
+        String historical = "00000000-0000-0000-0000-000000000042";
+        jdbc.update("UPDATE worker.tasks SET legacy_run_id = ? WHERE id = ?", historical, id);
+        jdbc.update("UPDATE dbehave.experiments SET grafana_url = ? WHERE task_id = ?",
+                "http://localhost:3001/d/dbehave-postgres?var-run_id=" + historical, id);
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.metricsId").value(historical));
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(id.toString(), recent.get("id"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grafanaUrl").value("http://localhost:3001/d/dbehave-postgres?var-run_id="
+                        + historical + "&var-run_id=" + recent.get("id") + "&kiosk=1"));
     }
 
     private void assertComparisonRejected(Object first, Object second) throws Exception {
@@ -1052,7 +1072,7 @@ class PluginPlatformIntegrationTest {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> persistedContext(UUID runId) {
+    private Map<String, Object> persistedContext(Long runId) {
         return json.readValue(jdbc.queryForObject(
                 "select context::text from worker.tasks where id = ?", String.class, runId), Map.class);
     }

@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 12,
+  "version": 14,
   "editable": true,
   "refresh": "",
   "time": {
@@ -76,10 +76,10 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))) or on (run_id) label_replace(vector(0), \"run_id\", \"${run_id:raw}\", \"__name__\", \".*\"))",
           "refId": "run_window"
         },
-        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))) or on (run_id) label_replace(vector(0), \"run_id\", \"${run_id:raw}\", \"__name__\", \".*\"))",
         "regex": "/run_id=\"(?<value>${run_id:regex})\".*?\\s+(?<text>[0-9]+)/",
         "refresh": 1,
         "sort": 0,
@@ -193,7 +193,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(sum by (run_id) ((dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"STARTING\"} offset ${run_window:text}ms * 1) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"PREPARING\"} offset ${run_window:text}ms * 2) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"WARMUP\"} offset ${run_window:text}ms * 3) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"LOAD\"} offset ${run_window:text}ms * 4) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"VERIFYING\"} offset ${run_window:text}ms * 5) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"DONE\"} offset ${run_window:text}ms * 6) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"FAILED\"} offset ${run_window:text}ms * 7)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(sum by (run_id) ((dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"STARTING\"} offset ${run_window:text}ms * 1) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"PREPARING\"} offset ${run_window:text}ms * 2) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"WARMUP\"} offset ${run_window:text}ms * 3) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"LOAD\"} offset ${run_window:text}ms * 4) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"VERIFYING\"} offset ${run_window:text}ms * 5) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"DONE\"} offset ${run_window:text}ms * 6) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"FAILED\"} offset ${run_window:text}ms * 7)), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}}"
         }
       ],
@@ -284,7 +284,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(last_over_time(dbehave_progress_percent{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(last_over_time(dbehave_progress_percent{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}}",
           "instant": true
         }
@@ -354,7 +354,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}}",
           "instant": true
         }
@@ -412,7 +412,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}}",
           "instant": true
         }
@@ -498,7 +498,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{op}}"
         }
       ],
@@ -548,7 +548,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · p50 {{op}}"
         },
         {
@@ -557,7 +557,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · p95 {{op}}"
         },
         {
@@ -566,7 +566,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · p99 {{op}}"
         }
       ],
@@ -615,7 +615,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{op}}: {{kind}}"
         }
       ],
@@ -665,7 +665,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{name}}"
         },
         {
@@ -674,7 +674,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_scenario_value{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_scenario_value{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{name}}"
         }
       ],
@@ -723,7 +723,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace(rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}}"
         }
       ],
@@ -786,7 +786,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_connections{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_connections{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{state}}"
         },
         {
@@ -795,7 +795,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_lock_waiters{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_lock_waiters{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · ждут блокировку"
         }
       ],
@@ -843,7 +843,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_lock_wait_max_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_lock_wait_max_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · самое долгое ожидание блокировки"
         },
         {
@@ -852,7 +852,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_oldest_transaction_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_oldest_transaction_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · возраст старейшей транзакции"
         }
       ],
@@ -901,7 +901,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{result}}"
         }
       ],
@@ -950,7 +950,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\",source=\"hit\"}[$__rate_interval] offset ${run_window:text}ms)) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\",source=\"hit\"}[$__rate_interval] offset ${run_window:text}ms)) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · cache hit"
         }
       ],
@@ -1001,7 +1001,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((rate(dbehave_db_wal_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((rate(dbehave_db_wal_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · WAL, байт/с"
         },
         {
@@ -1010,7 +1010,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · чекпоинты"
         }
       ],
@@ -1080,7 +1080,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((rate(dbehave_db_temp_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((rate(dbehave_db_temp_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · байт/с на диск"
         }
       ],
@@ -1130,7 +1130,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_db_tuples{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_db_tuples{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{state}}"
         }
       ],
@@ -1179,7 +1179,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((increase(dbehave_db_deadlocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((increase(dbehave_db_deadlocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · deadlocks"
         }
       ],
@@ -1622,7 +1622,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{role}}"
         }
       ],
@@ -1669,7 +1669,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{role}} used"
         },
         {
@@ -1678,7 +1678,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{role}} limit"
         }
       ],
@@ -1726,7 +1726,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{role}} read"
         },
         {
@@ -1735,7 +1735,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{role}} write"
         }
       ],
@@ -1782,7 +1782,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "expr": "label_replace((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "Запуск {{run}} · {{role}}"
         }
       ],

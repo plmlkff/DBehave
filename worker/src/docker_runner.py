@@ -145,7 +145,7 @@ class DockerSandboxRunner:
                 if not 1 <= health_port <= 65535:
                     raise SandboxError("HTTP_PORT must be between 1 and 65535")
             exit_code = await self._wait_for_loadgen(
-                db_container, loadgen_container, task.timeout_seconds, health_port, task.id
+                db_container, loadgen_container, task.timeout_seconds, health_port, task.metrics_id or task.id
             )
             if exit_code != 0:
                 raise SandboxError(f"Load-generator container exited with code {exit_code}")
@@ -175,7 +175,7 @@ class DockerSandboxRunner:
                         delete_metrics_group,
                         self.settings.prometheus_pushgateway_url,
                         "dbehave_worker_task",
-                        task_metrics_group(self.settings.instance_id, task.id),
+                        task_metrics_group(self.settings.instance_id, task.metrics_id or task.id),
                     )
                 except Exception:
                     logger.warning(
@@ -191,7 +191,7 @@ class DockerSandboxRunner:
                         delete_metrics_group,
                         self.settings.prometheus_pushgateway_url,
                         "dbehave",
-                        {"run_id": task.id},
+                        {"run_id": task.metrics_id or task.id},
                     )
                 except asyncio.CancelledError:
                     raise

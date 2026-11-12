@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 4,
   "editable": true,
   "refresh": "",
   "time": {
@@ -76,10 +76,10 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))) or on (run_id) label_replace(vector(0), \"run_id\", \"${run_id:raw}\", \"__name__\", \".*\"))",
           "refId": "run_window"
         },
-        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))) or on (run_id) label_replace(vector(0), \"run_id\", \"${run_id:raw}\", \"__name__\", \".*\"))",
         "regex": "/run_id=\"(?<value>${run_id:regex})\".*?\\s+(?<text>[0-9]+)/",
         "refresh": 1,
         "sort": 0,
@@ -116,7 +116,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (run_short, settings, scenario, params) (label_replace(max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[30d]), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\"))",
+          "expr": "max by (run_short, settings, scenario, params) (label_replace(max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[30d]), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\"))",
           "format": "table",
           "instant": true,
           "legendFormat": ""
@@ -246,7 +246,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((((dbehave_phase{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms == 1)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((((dbehave_phase{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms == 1)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{phase}} · {{run_short}}"
         }
       ],
@@ -296,7 +296,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_progress_percent{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_progress_percent{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -352,7 +352,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_clients_active{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_clients_active{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -390,7 +390,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id) (dbehave_errors_total{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id) (dbehave_errors_total{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -456,7 +456,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{op}} · {{run_short}}"
         }
       ],
@@ -503,7 +503,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "p50 {{op}} · {{run_short}}"
         },
         {
@@ -512,7 +512,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "p95 {{op}} · {{run_short}}"
         },
         {
@@ -521,7 +521,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "p99 {{op}} · {{run_short}}"
         }
       ],
@@ -567,7 +567,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{op}}: {{kind}} · {{run_short}}"
         }
       ],
@@ -614,7 +614,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -676,7 +676,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_clickhouse_active_parts{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((dbehave_clickhouse_active_parts{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -723,7 +723,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_clickhouse_active_merges{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((dbehave_clickhouse_active_merges{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -770,7 +770,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_rows_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_rows_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{op}} · {{run_short}}"
         }
       ],
@@ -817,7 +817,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{op}} · {{run_short}}"
         }
       ],
@@ -864,7 +864,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_clickhouse_stored_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((dbehave_clickhouse_stored_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -911,7 +911,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((last_over_time(dbehave_clickhouse_verified_rows{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((last_over_time(dbehave_clickhouse_verified_rows{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{kind}} · {{run_short}}",
           "instant": true,
           "range": false
@@ -975,7 +975,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{role}} · {{run_short}}"
         }
       ],
@@ -1021,7 +1021,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{role}} used · {{run_short}}"
         },
         {
@@ -1030,7 +1030,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{role}} limit · {{run_short}}"
         }
       ],
@@ -1077,7 +1077,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{role}} read · {{run_short}}"
         },
         {
@@ -1086,7 +1086,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{role}} write · {{run_short}}"
         }
       ],
@@ -1132,7 +1132,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^([0-9]+|[0-9a-fA-F]{8})(-[0-9a-fA-F-]+)?$\")",
           "legendFormat": "{{role}} · {{run_short}}"
         }
       ],

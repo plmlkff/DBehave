@@ -23,6 +23,23 @@ test('status polling keeps the live iframe URL stable until the run finishes', (
   assert.equal(url.searchParams.get('refresh'), '1s')
 })
 
+test('a queued numeric run supplies a zero offset before any metrics exist', () => {
+  const url = new URL(getExperimentGrafanaUrl({
+    ...run, state: 'QUEUED', grafanaUrl: 'http://localhost:3001/d/dbheave-mongo?var-run_id=8',
+  }))
+  assert.equal(url.searchParams.get('var-run_offsets'),
+    'label_replace(vector(0), "run_id", "8", "__name__", ".*")')
+  assert.equal(getExperimentGrafanaUrl({ ...run, grafanaUrl: url.toString() }), url.toString())
+})
+
+test('processing a dashboard URL preserves explicit comparison offsets', () => {
+  const offsets = 'label_replace(vector(1000), "run_id", "1", "__name__", ".*")'
+  const value = new URL('http://localhost:3001/d/test?var-run_id=1')
+  value.searchParams.set('var-run_offsets', offsets)
+  const url = new URL(getExperimentGrafanaUrl({ ...run, grafanaUrl: value.toString() }))
+  assert.equal(url.searchParams.get('var-run_offsets'), offsets)
+})
+
 test('every terminal state switches to a fixed range with no dashboard refresh fallback', () => {
   const dashboard = JSON.parse(readFileSync(new URL('../../plugins/postgres-load/grafana/postgres-run.json', import.meta.url)))
   assert.equal(dashboard.refresh, '')

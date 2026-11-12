@@ -79,6 +79,16 @@ test('simultaneous starts keep separate run IDs with zero offsets', () => {
   assert.equal(url.searchParams.get('from'), String(Date.parse(first.createdAt) - 5000))
 })
 
+test('numeric IDs preserve bigint precision and migrated runs use their historical metric labels', () => {
+  const old = { ...first, id: '1', metricsId: '00000000-0000-0000-0000-000000000001' }
+  const recent = { ...second, id: '9007199254740993', metricsId: '9007199254740993' }
+  const value = 'https://grafana.test/d/test?var-run_id=00000000-0000-0000-0000-000000000001&var-run_id=9007199254740993'
+  const url = new URL(getExperimentComparisonGrafanaUrl(value, [old, recent]))
+  assert.deepEqual(url.searchParams.getAll('var-run_id'), [old.metricsId, recent.metricsId])
+  assert.match(url.searchParams.get('var-run_offsets'), /"00000000-0000-0000-0000-000000000001"/)
+  assert.match(url.searchParams.get('var-run_offsets'), /"9007199254740993"/)
+})
+
 test('comparison refuses missing runs, invalid timestamps and invalid Grafana URLs', () => {
   assert.equal(getExperimentComparisonGrafanaUrl(comparisonUrl, []), null)
   assert.equal(getExperimentComparisonGrafanaUrl(comparisonUrl, [first]), null)

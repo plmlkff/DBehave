@@ -5,7 +5,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public final class GrafanaUrl {
     private static final String RUN_ID = "{runId}";
@@ -13,17 +12,17 @@ public final class GrafanaUrl {
     private GrafanaUrl() {
     }
 
-    public static String fromTemplate(String template, List<UUID> runIds) {
+    public static String fromTemplate(String template, List<String> runIds) {
         if (template == null || runIds == null || runIds.isEmpty()) {
             throw new IllegalArgumentException("Для сравнения нужны шаблон Grafana и идентификаторы запусков");
         }
-        for (UUID runId : runIds) {
-            if (runId == null) {
+        for (String runId : runIds) {
+            if (runId == null || !runId.matches("[0-9a-fA-F-]+")) {
                 throw new IllegalArgumentException("Идентификатор запуска не может быть пустым");
             }
         }
 
-        var uri = URI.create(template.replace(RUN_ID, "00000000-0000-0000-0000-000000000000"));
+        var uri = URI.create(template.replace(RUN_ID, "1"));
         if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
                 || uri.getHost() == null) {
             throw new IllegalArgumentException("Укажите HTTP(S)-ссылку Grafana");
@@ -55,7 +54,7 @@ public final class GrafanaUrl {
             }
             if (value.equals(RUN_ID)) {
                 foundRunVariable = true;
-                for (UUID runId : runIds) {
+                for (String runId : runIds) {
                     parameters.add(rawName + "=" + runId);
                 }
             } else {

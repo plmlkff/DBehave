@@ -1,10 +1,10 @@
 package io.dbehave.backend.experiment;
 
 import java.time.Instant;
-import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 public record ExperimentRun(
-        UUID id,
+        @JsonFormat(shape = JsonFormat.Shape.STRING) Long id,
         String state,
         Instant createdAt,
         Instant updatedAt,
@@ -17,6 +17,7 @@ public record ExperimentRun(
         String scenarioId,
         String scenarioTitle,
         ExperimentRequest configuration,
-        String grafanaUrlTemplate
+        String grafanaUrlTemplate,
+        String metricsId
 ) {
 }

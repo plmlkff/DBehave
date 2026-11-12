@@ -6,13 +6,12 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 import asyncpg
 
 from src.config import Settings
 from src.image_refs import normalize_image_ref
-from src.models import TaskStatus, TaskSubmission
+from src.models import TaskStatus, TaskSubmission, TaskRequest
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class TaskRepository:
             await self._pool.close()
             self._pool = None
 
-    async def create(self, task: TaskSubmission) -> None:
+    async def create(self, task: TaskRequest) -> str:
         pool = self._require_pool()
         payload = task.model_dump(mode="json")
         context = {
@@ -92,16 +91,17 @@ class TaskRepository:
             },
         }
         async with pool.acquire() as connection:
-            await connection.execute(
-                """INSERT INTO worker.tasks (id, state, context)
-                   VALUES ($1, 'QUEUED', $2::jsonb)""",
-                UUID(task.id), json.dumps(context),
+            task_id = await connection.fetchval(
+                """INSERT INTO worker.tasks (state, context)
+                   VALUES ('QUEUED', $1::jsonb) RETURNING id""",
+                json.dumps(context),
             )
+        return str(task_id)
 
     async def list_new(self, limit: int = 100) -> list[TaskRecord]:
         pool = self._require_pool()
         rows = await pool.fetch(
-            """SELECT id, state, created_at, updated_at, context, heartbeat, worker_id, error
+            """SELECT id, legacy_run_id, state, created_at, updated_at, context, heartbeat, worker_id, error
                FROM worker.tasks
                WHERE state = 'QUEUED'
                ORDER BY created_at, id
@@ -127,9 +127,9 @@ class TaskRepository:
         row = await pool.fetchrow(
             """UPDATE worker.tasks
                SET state = 'RUNNING', worker_id = $2, heartbeat = clock_timestamp()
-               WHERE id = $1::uuid AND state = 'QUEUED'
+               WHERE id = $1::bigint AND state = 'QUEUED'
                RETURNING id""",
-            UUID(task_id), self.worker_id,
+            _database_id(task_id), self.worker_id,
         )
         return row is not None
 
@@ -137,8 +137,8 @@ class TaskRepository:
         pool = self._require_pool()
         await pool.execute(
             """UPDATE worker.tasks SET heartbeat = clock_timestamp()
-               WHERE id = $1::uuid AND worker_id = $2 AND state = 'RUNNING'""",
-            UUID(task_id), self.worker_id,
+               WHERE id = $1::bigint AND worker_id = $2 AND state = 'RUNNING'""",
+            _database_id(task_id), self.worker_id,
         )
 
     async def finish(
@@ -157,8 +157,8 @@ class TaskRepository:
         await pool.execute(
             """UPDATE worker.tasks
                SET state = $2, error = $3, heartbeat = clock_timestamp()
-               WHERE id = $1::uuid AND worker_id = $4""",
-            UUID(task_id), status.value, _truncate(error, 8192), self.worker_id,
+               WHERE id = $1::bigint AND worker_id = $4""",
+            _database_id(task_id), status.value, _truncate(error, 8192), self.worker_id,
         )
 
     async def fail_interrupted(self) -> None:
@@ -173,9 +173,9 @@ class TaskRepository:
     async def get(self, task_id: str) -> TaskRecord | None:
         pool = self._require_pool()
         row = await pool.fetchrow(
-            """SELECT id, state, created_at, updated_at, context, heartbeat, worker_id, error
-               FROM worker.tasks WHERE id = $1::uuid""",
-            UUID(task_id),
+            """SELECT id, legacy_run_id, state, created_at, updated_at, context, heartbeat, worker_id, error
+               FROM worker.tasks WHERE id = $1::bigint""",
+            _database_id(task_id),
         )
         return _to_record(row, self.settings) if row else None
 
@@ -189,7 +189,7 @@ def _to_record(row: asyncpg.Record, settings: Settings) -> TaskRecord:
     context: dict[str, Any] = row["context"]
     if isinstance(context, str):
         context = json.loads(context)
-    payload = _to_submission(context, settings, str(row["id"]))
+    payload = _to_submission(context, settings, str(row["id"]), row.get("legacy_run_id"))
     state = row["state"]
     status = TaskStatus(state)
     created_at = _timestamp(row["created_at"])
@@ -210,7 +210,7 @@ def _to_record(row: asyncpg.Record, settings: Settings) -> TaskRecord:
 
 
 def _to_submission(
-    context: dict[str, Any], settings: Settings, task_id: str
+    context: dict[str, Any], settings: Settings, task_id: str, metrics_id: str | None = None
 ) -> TaskSubmission:
     db_context = context["databaseImageContext"]
     loadgen_context = context["loaderImageContext"]
@@ -256,6 +256,7 @@ def _to_submission(
 
     return TaskSubmission(
         id=task_id,
+        metrics_id=metrics_id,
         db_image=db_image,
         loadgen_image=context["loaderImageName"],
         cpu_cores=db_cpu + loadgen_cpu,
@@ -310,3 +311,9 @@ def _truncate(value: str | None, max_chars: int) -> str | None:
     if value is None or len(value) <= max_chars:
         return value
     return value[-max_chars:]
+
+
+def _database_id(value: str) -> int:
+    if not value.isascii() or not value.isdecimal() or not 0 < int(value) <= 9_223_372_036_854_775_807:
+        raise ValueError("Task ID must be a positive bigint")
+    return int(value)

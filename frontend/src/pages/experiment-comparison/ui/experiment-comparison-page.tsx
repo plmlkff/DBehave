@@ -69,7 +69,7 @@ export function ExperimentComparisonPage() {
               <RunConfiguration
                 key={run.id}
                 configuration={run.configuration}
-                title={`Параметры запуска ${index + 1} · ${run.id.slice(0, 8)}`}
+                title={`Параметры запуска ${index + 1} · ${run.id}`}
               />
             ))}
           </div>

@@ -23,13 +23,20 @@ export function getExperimentGrafanaUrl(run: GrafanaRun) {
     } else {
       url.searchParams.set('refresh', '1s')
     }
+    // The dashboard must resolve its repeated row even before the first metrics scrape.
+    const runIds = url.searchParams.getAll('var-run_id').filter(Boolean)
+    if (runIds.length && !url.searchParams.has('var-run_offsets')) {
+      url.searchParams.set('var-run_offsets', runIds.map(id =>
+        `label_replace(vector(0), "run_id", ${JSON.stringify(id)}, "__name__", ".*")`,
+      ).join(' or '))
+    }
     return url.toString()
   } catch {
     return null
   }
 }
 
-type ComparisonRun = GrafanaRun & Pick<ExperimentRun, 'id'>
+type ComparisonRun = GrafanaRun & Pick<ExperimentRun, 'id' | 'metricsId'>
 
 export function getExperimentComparisonGrafanaUrl(value: string, runs: readonly ComparisonRun[]) {
   if (runs.length < 2) return null
@@ -53,7 +60,7 @@ export function getExperimentComparisonGrafanaUrl(value: string, runs: readonly 
   // Векторы передают только метаданные сравнения; метрики остаются в Prometheus.
   const offsets = runs.map((run, index) => {
     const offsetMs = finished ? anchor - starts[index] : 0
-    return `label_replace(vector(${offsetMs}), "run_id", ${JSON.stringify(run.id)}, "__name__", ".*")`
+    return `label_replace(vector(${offsetMs}), "run_id", ${JSON.stringify(run.metricsId ?? run.id)}, "__name__", ".*")`
   })
   url.searchParams.set('var-run_offsets', offsets.join(' or '))
   return url.toString()

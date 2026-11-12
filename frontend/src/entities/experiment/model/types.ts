@@ -37,6 +37,7 @@ export type ValidationResult = { status: string; execution: string }
 export type ExperimentComparison = { grafanaUrl: string }
 
 export type ExperimentRun = {
+  metricsId?: string
   id: string
   state: string
   createdAt: string
