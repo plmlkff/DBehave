@@ -229,7 +229,7 @@ def _to_submission(
     db_environment = _environment(db_context.get("environment", {}), "database")
     loadgen_environment = _environment(loadgen_context.get("environment", {}), "loader")
     db_image = context["databaseImageName"]
-    db_tmpfs_paths = options.get("dbTmpfsPaths", ["/tmp", "/var/tmp", "/run"])
+    db_tmpfs_paths = list(options.get("dbTmpfsPaths", ["/tmp", "/var/tmp", "/run"]))
     db_data_path = options.get("dbDataPath")
     if "dbTmpfsPaths" not in options and db_data_path is None:
         image = normalize_image_ref(db_image)
@@ -245,6 +245,9 @@ def _to_submission(
         elif image.split("@", 1)[0].split(":", 1)[0] == "docker.io/library/mongo":
             data_path = "/data/db"
             db_tmpfs_paths.append("/data/configdb")
+        elif image.split("@", 1)[0].split(":", 1)[0] == "docker.io/clickhouse/clickhouse-server":
+            data_path = "/var/lib/clickhouse"
+            db_tmpfs_paths.append("/var/log/clickhouse-server")
         if data_path is not None:
             if settings.db_data_storage == "volume":
                 db_data_path = data_path

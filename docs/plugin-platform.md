@@ -64,6 +64,15 @@ key=value`, их единицы и булевы значения формати�
 У PostgreSQL и MongoDB отдельные дашборды Grafana. Список запусков на каждом
 дашборде фильтруется по метке `engine` метрики `dbehave_run_info`.
 
+`clickhouse` строит контексты для `clickhouse/clickhouse-server:25.8.4.13` и
+`dbehave/clickhouse-load:0.1.0`. Два ограничения запросов, `maxThreads` и
+`maxMemoryUsageMB`, передаются нагрузчику вместе с параметрами сценария; нагрузчик
+задаёт их в HTTP-запросах ClickHouse. Worker выделяет `/var/lib/clickhouse` отдельный
+том согласно `WORKER_DB_DATA_STORAGE`. Дашборд с UID `dbehave-clickhouse` использует
+общие метрики нагрузки и метрики частей, слияний, объёма чтения и проверки версий.
+Описание четырёх сценариев и методика парных запусков — в
+[документации ClickHouse](../plugins/clickhouse-load/README.md).
+
 Для специальной конвертации реализуйте `ContextCollector` из `plugin-api` и
 зарегистрируйте его как Spring-бин. `id()` возвращает значение `collectorId`,
 `collect(plugin, scenario, settings, params)` — `ImageContexts` для двух образов.

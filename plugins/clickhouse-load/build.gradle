@@ -1,0 +1,25 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':plugins:clickhouse')
+    implementation project(':plugins:load-common')
+
+    testImplementation platform('org.junit:junit-bom:6.1.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core:3.27.7'
+    testImplementation 'io.prometheus:prometheus-metrics-exposition-textformats:1.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'io.dbehave.plugin.clickhouse.load.Main'
+    applicationName = 'clickhouse-load'
+    applicationDefaultJvmArgs = ['-XX:MaxRAMPercentage=75']
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    inputs.property('clickhouseIntegrationUrl', providers.environmentVariable('DBEHAVE_TEST_CLICKHOUSE_URL').orElse(''))
+}

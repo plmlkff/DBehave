@@ -1,0 +1,1119 @@
+{
+  "uid": "dbehave-clickhouse",
+  "title": "DBehave · ClickHouse",
+  "tags": [
+    "dbehave",
+    "clickhouse"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "",
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "1s",
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Источник",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0
+      },
+      {
+        "name": "run_id",
+        "label": "Запуски",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(dbehave_run_info{engine=\"clickhouse\"}, run_id)",
+          "refId": "run_id"
+        },
+        "definition": "label_values(dbehave_run_info{engine=\"clickhouse\"}, run_id)",
+        "refresh": 1,
+        "sort": 4,
+        "hide": 0,
+        "multi": true,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "table",
+      "title": "Запуски",
+      "id": 28,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "description": "Короткий ID совпадает с легендами. Полный текст настроек и параметров можно открыть из ячейки.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (run_short, settings, scenario, params) (label_replace(max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[$__range]), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\"))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "indexByName": {
+              "settings": 0,
+              "scenario": 1,
+              "params": 2,
+              "run_short": 3
+            },
+            "renameByName": {
+              "settings": "Настройки",
+              "scenario": "Сценарий",
+              "params": "Нагрузка",
+              "run_short": "Запуск"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 90
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Сценарий"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Запуск"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Настройки"
+            },
+            "properties": [
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Нагрузка"
+            },
+            "properties": [
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Ход запуска",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "panels": []
+    },
+    {
+      "type": "state-timeline",
+      "title": "Фаза",
+      "id": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((((dbehave_phase{run_id=~\"$run_id\"} == 1)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{phase}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": " ",
+                  "color": "transparent"
+                },
+                "1": {
+                  "text": "активна",
+                  "color": "blue"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Прогресс фазы",
+      "id": 3,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 12,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((dbehave_progress_percent{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "text": {
+          "titleSize": 14,
+          "valueSize": 28
+        },
+        "graphMode": "none",
+        "colorMode": "none"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Активные клиенты",
+      "id": 4,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((dbehave_clients_active{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "text": {
+          "titleSize": 14,
+          "valueSize": 28
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Ошибок всего",
+      "id": 5,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((sum by (run_id) (dbehave_errors_total{run_id=~\"$run_id\"})) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "text": {
+          "titleSize": 14,
+          "valueSize": 28
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Клиенты",
+      "id": 6,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Пропускная способность",
+      "id": 7,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{op}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Успешных операций в секунду по типам"
+    },
+    {
+      "type": "timeseries",
+      "title": "Задержка p50 / p95 / p99",
+      "id": 8,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "p50 {{op}} · {{run_short}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "p95 {{op}} · {{run_short}}"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "p99 {{op}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ошибки по видам",
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{op}}: {{kind}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Например, memory_limit, operation_timeout и duplicate_key"
+    },
+    {
+      "type": "timeseries",
+      "title": "Подтверждённые записи в секунду",
+      "id": 29,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((rate(dbehave_records_written_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Документы в успешно подтверждённых пачках write-heavy"
+    },
+    {
+      "type": "row",
+      "title": "ClickHouse",
+      "id": 40,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Активные части MergeTree",
+      "id": 41,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((dbehave_clickhouse_active_parts{run_id=~\"$run_id\"}), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Много небольших частей увеличивает стоимость слияний. Строки в Buffer ещё не входят в MergeTree."
+    },
+    {
+      "type": "timeseries",
+      "title": "Активные слияния",
+      "id": 42,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((dbehave_clickhouse_active_merges{run_id=~\"$run_id\"}), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Текущие записи в system.merges. В сценарии ReplacingMergeTree слияния приостановлены намеренно."
+    },
+    {
+      "type": "timeseries",
+      "title": "Прочитанные строки на запрос",
+      "id": 43,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_rows_total{run_id=~\"$run_id\"}[$__rate_interval])) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval])), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{op}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Данные X-ClickHouse-Summary успешных запросов основной нагрузки. Помогает сравнить отсечение гранул ключом сортировки и Bloom."
+    },
+    {
+      "type": "timeseries",
+      "title": "Прочитанные байты на запрос",
+      "id": 44,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval])), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{op}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Логический объём чтения из X-ClickHouse-Summary; это не измерение дискового I/O. Файловый кеш может обслужить чтение."
+    },
+    {
+      "type": "timeseries",
+      "title": "Данные на диске",
+      "id": 45,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((dbehave_clickhouse_stored_bytes{run_id=~\"$run_id\"}), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Сумма bytes_on_disk активных частей тестовой базы. Не включает оперативную память таблицы Buffer."
+    },
+    {
+      "type": "stat",
+      "title": "Проверка результата",
+      "id": 46,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace((last_over_time(dbehave_clickhouse_verified_rows{run_id=~\"$run_id\"}[$__range])), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{kind}} · {{run_short}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "description": "Итоговые счётчики: acknowledged/persisted — подтверждённые/сохранённые вставки; physical/logical/visible — физические строки/уникальные ключи/результат чтения ReplacingMergeTree. Сравнивайте запуски одного сценария."
+    },
+    {
+      "type": "row",
+      "title": "Ресурсы контейнеров задания",
+      "id": 23,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU контейнеров задания",
+      "id": 24,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{role}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Память контейнеров и лимиты",
+      "id": 25,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((dbehave_worker_container_memory_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{role}} used · {{run_short}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((dbehave_worker_container_memory_limit_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{role}} limit · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Дисковый I/O контейнеров",
+      "description": "Скорость чтения и записи через блочный I/O; операции в tmpfs не учитываются.",
+      "id": 26,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{role}} read · {{run_short}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{role}} write · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Процессы в контейнерах",
+      "id": 27,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(((dbehave_worker_container_pids{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "legendFormat": "{{role}} · {{run_short}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ]
+}

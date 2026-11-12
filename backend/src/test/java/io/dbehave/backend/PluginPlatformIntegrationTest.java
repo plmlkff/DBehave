@@ -72,7 +72,8 @@ class PluginPlatformIntegrationTest {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].id", hasItem("postgres")))
-                .andExpect(jsonPath("$[*].id", hasItem("mongo")));
+                .andExpect(jsonPath("$[*].id", hasItem("mongo")))
+                .andExpect(jsonPath("$[*].id", hasItem("clickhouse")));
         mvc.perform(get("/api/plugins/postgres"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.collectorId").value("postgres"))
@@ -83,7 +84,8 @@ class PluginPlatformIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasItem("generic")))
                 .andExpect(jsonPath("$", hasItem("postgres")))
-                .andExpect(jsonPath("$", hasItem("mongo")));
+                .andExpect(jsonPath("$", hasItem("mongo")))
+                .andExpect(jsonPath("$", hasItem("clickhouse")));
 
         assertThat(jdbc.queryForObject(
                 "select jsonb_typeof(definition) from dbehave.plugins where id = 'postgres'", String.class))
@@ -790,6 +792,72 @@ class PluginPlatformIntegrationTest {
                 .andExpect(jsonPath("$.grafanaUrl").value(
                         "https://grafana.example.test/d/custom?var-run_id=" + first.get("id")
                                 + "&var-run_id=" + second.get("id") + "&kiosk=1"));
+    }
+
+    @Test
+    @Transactional
+    void exposesClickHouseFormsAndQueuesEveryScenarioWithSavedParameters() throws Exception {
+        mvc.perform(get("/api/plugins/clickhouse"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.collectorId").value("clickhouse"))
+                .andExpect(jsonPath("$.scenarios", hasSize(4)));
+
+        var switches = Map.of("small-inserts", "buffered", "sorting-key", "sortedKey",
+                "bloom-filter", "bloomFilter", "replacing-merge-tree", "finalRead");
+        for (var entry : switches.entrySet()) {
+            String scenarioId = entry.getKey();
+            String switchKey = entry.getValue();
+            mvc.perform(get("/api/ui/experiment").param("pluginId", "clickhouse").param("scenarioId", scenarioId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.form.sections[0].fields[*].name", hasItem("settings.maxThreads")))
+                    .andExpect(jsonPath("$.form.sections[1].fields[*].name", hasItem("params." + switchKey)));
+
+            var run = startRun(Map.of("pluginId", "clickhouse", "scenarioId", scenarioId,
+                    "params", Map.of(switchKey, false), "settings", Map.of("maxThreads", 1)));
+            UUID id = UUID.fromString((String) run.get("id"));
+            var context = persistedContext(id);
+            assertThat(context).containsEntry("databaseImageName", "clickhouse/clickhouse-server:25.8.4.13")
+                    .containsEntry("loaderImageName", "dbehave/clickhouse-load:0.1.0");
+            assertThat(imageContext(context, "databaseImageContext"))
+                    .containsEntry("core_max", new BigDecimal("1.5")).containsEntry("mem_max", 1_610_612_736);
+            assertThat(imageContext(imageContext(context, "loaderImageContext"), "environment"))
+                    .containsEntry("SCENARIO", scenarioId)
+                    .containsEntry("MAX_THREADS", "1")
+                    .containsEntry("MAX_MEMORY_USAGE_MB", "256")
+                    .containsEntry(io.dbehave.plugin.clickhouse.ClickHouseContextCollector.environmentKey(switchKey), "false");
+            mvc.perform(get("/api/experiments/{id}", id))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.configuration.settings.maxThreads").value(1))
+                    .andExpect(jsonPath("$.configuration.params." + switchKey).value(false))
+                    .andExpect(jsonPath("$.configuration.params.clients").value(4))
+                    .andExpect(jsonPath("$.grafanaUrl").value(
+                            "http://localhost:3001/d/dbehave-clickhouse?var-run_id=" + id + "&kiosk=1"));
+        }
+    }
+
+    @Test
+    @Transactional
+    void comparesClickHouseRunsAndRejectsInvalidInputBeforeQueueing() throws Exception {
+        var first = startRun(Map.of("pluginId", "clickhouse", "scenarioId", "small-inserts",
+                "params", Map.of("buffered", false)));
+        var second = startRun(Map.of("pluginId", "clickhouse", "scenarioId", "small-inserts",
+                "params", Map.of("buffered", true)));
+        mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("runIds", List.of(first.get("id"), second.get("id"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grafanaUrl").value("http://localhost:3001/d/dbehave-clickhouse?var-run_id="
+                        + first.get("id") + "&var-run_id=" + second.get("id") + "&kiosk=1"));
+
+        var otherScenario = startRun(Map.of("pluginId", "clickhouse", "scenarioId", "bloom-filter"));
+        assertComparisonRejected(first.get("id"), otherScenario.get("id"));
+        assertRejectedBeforeQueue(Map.of("pluginId", "clickhouse", "scenarioId", "small-inserts",
+                "params", Map.of("buffered", "true")));
+        assertRejectedBeforeQueue(Map.of("pluginId", "clickhouse", "scenarioId", "sorting-key",
+                "params", Map.of("datasetRows", 9999)));
+        assertRejectedBeforeQueue(Map.of("pluginId", "clickhouse", "scenarioId", "bloom-filter",
+                "settings", Map.of("maxThreads", 0)));
+        assertRejectedBeforeQueue(Map.of("pluginId", "clickhouse", "scenarioId", "replacing-merge-tree",
+                "params", Map.of("versions", 11)));
     }
 
     @Test
