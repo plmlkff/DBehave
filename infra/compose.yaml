@@ -58,6 +58,14 @@ services:
     entrypoint: ["/bin/true"]
     restart: "no"
 
+  clickhouse-loadgen-image:
+    image: dbehave/clickhouse-load:0.1.0
+    build:
+      context: ..
+      dockerfile: plugins/clickhouse-load/Dockerfile
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
   worker:
     image: dbehave/worker:local
     build:
@@ -80,7 +88,7 @@ services:
       WORKER_METRICS_SCRAPE_SECONDS: ${WORKER_METRICS_SCRAPE_SECONDS:-2}
       WORKER_PROMETHEUS_PUSHGATEWAY_URL: http://pushgateway:9091
       WORKER_CONTAINER_NAME: dbehave-worker
-      WORKER_ALLOWED_IMAGE_PREFIXES: ${WORKER_ALLOWED_IMAGE_PREFIXES:-docker.io/library/,docker.io/dbehave/}
+      WORKER_ALLOWED_IMAGE_PREFIXES: ${WORKER_ALLOWED_IMAGE_PREFIXES:-docker.io/library/,docker.io/dbehave/,docker.io/clickhouse/}
       WORKER_REQUIRE_ROOTLESS_DOCKER: ${WORKER_REQUIRE_ROOTLESS_DOCKER:-false}
       WORKER_DB_DATA_STORAGE: ${WORKER_DB_DATA_STORAGE:-volume}
     volumes:
@@ -93,6 +101,8 @@ services:
       loadgen-image:
         condition: service_completed_successfully
       mongo-loadgen-image:
+        condition: service_completed_successfully
+      clickhouse-loadgen-image:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
@@ -140,6 +150,7 @@ services:
       - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/worker.yaml:ro
       - ../plugins/postgres-load/grafana:/var/lib/grafana/dashboards/dbehave:ro
       - ../plugins/mongo-load/grafana:/var/lib/grafana/dashboards/mongo:ro
+      - ../plugins/clickhouse-load/grafana:/var/lib/grafana/dashboards/clickhouse:ro
       - ./grafana:/var/lib/grafana/dashboards/worker:ro
       - grafana-data:/var/lib/grafana
     ports:

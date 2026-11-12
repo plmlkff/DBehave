@@ -31,6 +31,20 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.8.4.13
+        env:
+          CLICKHOUSE_DB: dbehave
+          CLICKHOUSE_USER: dbehave
+          CLICKHOUSE_PASSWORD: dbehave
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: '1'
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user dbehave --password dbehave --query 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -55,6 +69,7 @@ jobs:
           DBEHAVE_TEST_DATABASE_PASSWORD: postgres
           DBEHAVE_TEST_MONGO_URI: mongodb://localhost:27017
           DBEHAVE_TEST_MONGO_UNCOMPRESSED_URI: mongodb://localhost:27018
+          DBEHAVE_TEST_CLICKHOUSE_URL: http://127.0.0.1:8123
         run: ./gradlew --no-daemon build
   frontend:
     runs-on: ubuntu-latest

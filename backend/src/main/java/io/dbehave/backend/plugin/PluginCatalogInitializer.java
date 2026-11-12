@@ -1,5 +1,6 @@
 package io.dbehave.backend.plugin;
 
+import io.dbehave.plugin.clickhouse.ClickHouseContextCollector;
 import io.dbehave.plugin.mongo.MongoContextCollector;
 import io.dbehave.plugin.postgres.PostgresContextCollector;
 import org.springframework.boot.ApplicationArguments;
@@ -18,5 +19,6 @@ class PluginCatalogInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         plugins.insert(PostgresContextCollector.defaultDefinition());
         plugins.insert(MongoContextCollector.defaultDefinition());
+        plugins.insert(ClickHouseContextCollector.defaultDefinition());
     }
 }

@@ -106,3 +106,44 @@ def test_mongo_declared_volumes_use_task_storage():
     assert tmpfs_task.db_data_path is None
     assert "/data/db" in tmpfs_task.db_tmpfs_paths
     assert "/data/configdb" in tmpfs_task.db_tmpfs_paths
+
+
+def clickhouse_context(image="clickhouse/clickhouse-server:25.8"):
+    return {
+        "loaderImageName": "dbehave/clickhouse-load:0.1.0",
+        "databaseImageName": image,
+        "loaderImageContext": {"environment": {"SCENARIO": "sorting-key"}},
+        "databaseImageContext": {"environment": {"CLICKHOUSE_DB": "dbehave"}},
+    }
+
+
+def test_clickhouse_declared_volumes_use_task_storage():
+    context = clickhouse_context("docker.io/clickhouse/clickhouse-server:25.8")
+
+    task = _to_submission(context, make_settings(), "clickhouse-volume")
+
+    assert task.db_data_path == "/var/lib/clickhouse"
+    assert "/var/lib/clickhouse" not in task.db_tmpfs_paths
+    assert "/var/log/clickhouse-server" in task.db_tmpfs_paths
+
+
+def test_clickhouse_data_can_stay_in_tmpfs():
+    task = _to_submission(clickhouse_context(), make_settings(db_data_storage="tmpfs"), "clickhouse-tmpfs")
+
+    assert task.db_data_path is None
+    assert "/var/lib/clickhouse" in task.db_tmpfs_paths
+    assert "/var/log/clickhouse-server" in task.db_tmpfs_paths
+
+
+def test_explicit_storage_paths_are_preserved_without_mutating_context():
+    context = clickhouse_context()
+    context["workerOptions"] = {
+        "dbTmpfsPaths": ["/tmp", "/var/log/clickhouse-server"],
+        "dbDataPath": "/var/lib/clickhouse",
+    }
+
+    task = _to_submission(context, make_settings(), "clickhouse-custom")
+
+    assert task.db_tmpfs_paths == ["/tmp", "/var/log/clickhouse-server"]
+    assert context["workerOptions"]["dbTmpfsPaths"] == ["/tmp", "/var/log/clickhouse-server"]
+    assert task.db_data_path == "/var/lib/clickhouse"

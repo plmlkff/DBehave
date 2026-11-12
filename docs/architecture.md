@@ -33,9 +33,9 @@ flowchart LR
 
 `PluginDefinition` — Java record описания плагина. `Scenario` задаёт сценарий и два списка полей `settings` и `params`. `FieldSpec` описывает ключ, подпись, тип, default, границы, единицу измерения и варианты выбора. По этим данным бэкенд строит BDUI-форму и проверяет ввод.
 
-`ContextCollector` — Java-интерфейс исполняемого преобразователя. Spring регистрирует реализации `postgres` и `generic` в `PluginConfiguration`. `PluginRegistry` находит бин по `collectorId` из БД. При регистрации плагина проверяются доступность коллектора и сборка его сценариев с defaults.
+`ContextCollector` — Java-интерфейс исполняемого преобразователя. Spring регистрирует реализации `postgres`, `mongo`, `clickhouse` и `generic` в `PluginConfiguration`. `PluginRegistry` находит бин по `collectorId` из БД. При регистрации плагина проверяются доступность коллектора и сборка его сценариев с defaults.
 
-`PluginCatalogInitializer` добавляет `PostgresContextCollector.defaultDefinition()`, если записи PostgreSQL-плагина ещё нет. При запросах каталог читается из БД через `PluginRepository` и преобразуется из JSON в `PluginDefinition`.
+`PluginCatalogInitializer` добавляет определения PostgreSQL, MongoDB и ClickHouse, если соответствующих записей ещё нет. Существующие определения сохраняются. При запросах каталог читается из БД через `PluginRepository` и преобразуется из JSON в `PluginDefinition`.
 
 Пример `definition` с одним сценарием и двумя BDUI-полями
 
@@ -156,5 +156,6 @@ API истории и статуса возвращает `ExperimentRun` с м�
 | `backend/src/main/java/io/dbehave/backend/config` | Spring-бины коллекторов и настройки JSON |
 | `plugin-api/src/main/java/io/dbehave/plugin` | `PluginDefinition`, `Scenario`, `FieldSpec`, `ContextCollector` |
 | `plugins/postgres` и `plugins/postgres-load` | PostgreSQL-коллектор и отдельное приложение нагрузчика |
+| `plugins/clickhouse` и `plugins/clickhouse-load` | ClickHouse-коллектор, четыре сценария и отдельный нагрузчик |
 
 Пакеты бэкенда находятся в `backend/src/main/java/io/dbehave/backend`, миграции — в `backend/src/main/resources/db/migration`.

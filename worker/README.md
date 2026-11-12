@@ -130,7 +130,12 @@ curl http://127.0.0.1:8080/tasks/00000000-0000-4000-8000-000000000001 \
 - корневая ФС read-only, поэтому все пути, куда приложению нужно писать, должны быть в списке tmpfs. Список путей не является bind mount и не открывает доступ к файловой системе worker;
 - закрепляйте образы по digest в production, а не используйте изменяемые теги.
 
-Для PostgreSQL worker сам выбирает каталог данных (`/var/lib/postgresql` для версии 18+, иначе `/var/lib/postgresql/data`) и, в зависимости от `WORKER_DB_DATA_STORAGE`, монтирует туда том задания или tmpfs. Для других СУБД укажите каталог данных, соответствующий конкретному образу (например, Redis — `/data`, MySQL — `/var/lib/mysql`, MongoDB — `/data/db`).
+Для PostgreSQL worker сам выбирает каталог данных (`/var/lib/postgresql` для версии 18+, иначе `/var/lib/postgresql/data`) и, в зависимости от `WORKER_DB_DATA_STORAGE`, монтирует туда том задания или tmpfs. Для официальных MongoDB и ClickHouse автоматически выбираются `/data/db` и `/var/lib/clickhouse`; служебные каталоги MongoDB и логи ClickHouse размещаются в tmpfs. Для других СУБД укажите каталог данных, соответствующий конкретному образу (например, Redis — `/data`, MySQL — `/var/lib/mysql`).
+
+Основной Compose уже разрешает `docker.io/clickhouse/` в allowlist образов.
+Для отдельного worker или существующего `.env` добавьте этот префикс в
+`WORKER_ALLOWED_IMAGE_PREFIXES`. Плагин ClickHouse содержит стартовую команду,
+совместимую с read-only root; ограничения безопасности worker не ослабляются.
 
 ## 5. Конфигурация worker
 
