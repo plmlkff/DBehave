@@ -53,10 +53,9 @@ def _validate_tmpfs_paths(paths: list[str]) -> list[str]:
     return normalized
 
 
-class TaskSubmission(BaseModel):
+class TaskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: TaskId
     db_image: Annotated[str, Field(min_length=1, max_length=255)]
     loadgen_image: Annotated[str, Field(min_length=1, max_length=255)]
 
@@ -125,7 +124,7 @@ class TaskSubmission(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def status_must_be_new(self) -> "TaskSubmission":
+    def status_must_be_new(self) -> "TaskRequest":
         if self.status != TaskStatus.NEW:
             raise ValueError("New jobs must have status NEW")
         if self.cpu_cores * self.db_cpu_fraction < 0.1:
@@ -139,6 +138,12 @@ class TaskSubmission(BaseModel):
         if self.db_data_path is not None and self.db_data_path in self.db_tmpfs_paths:
             raise ValueError("db_data_path must not also be a tmpfs path")
         return self
+
+
+class TaskSubmission(TaskRequest):
+    id: TaskId
+    # Historical Prometheus label; new tasks use their numeric database ID.
+    metrics_id: TaskId | None = Field(default=None, exclude=True)
 
 
 class TaskView(BaseModel):

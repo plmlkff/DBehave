@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -92,10 +91,10 @@ public class ExperimentService {
     @Transactional
     public ExperimentRun start(ExperimentRequest request) {
         var prepared = prepare(request);
-        var id = UUID.randomUUID();
+        var task = tasks.insert(prepared.context());
+        var id = task.id();
         String grafanaUrl = GrafanaUrl.withKiosk(
                 prepared.grafanaUrlTemplate().replace("{runId}", id.toString()));
-        var task = tasks.insert(id, prepared.context());
         tasks.insertExperiment(
                 id, prepared.pluginId(), prepared.pluginTitle(),
                 prepared.scenarioId(), prepared.scenarioTitle(), grafanaUrl,
@@ -104,10 +103,10 @@ public class ExperimentService {
                 task.id(), task.state(), task.createdAt(), task.updatedAt(),
                 task.heartbeat(), task.workerId(), task.error(), grafanaUrl,
                 prepared.pluginId(), prepared.pluginTitle(), prepared.scenarioId(), prepared.scenarioTitle(),
-                prepared.configuration(), prepared.grafanaUrlTemplate());
+                prepared.configuration(), prepared.grafanaUrlTemplate(), id.toString());
     }
 
-    public ExperimentRun status(UUID id) {
+    public ExperimentRun status(Long id) {
         return tasks.findExperimentById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id));
     }
@@ -116,7 +115,7 @@ public class ExperimentService {
         return tasks.findRecentExperiments();
     }
 
-    public void hide(UUID id) {
+    public void hide(Long id) {
         if (!tasks.hideExperiment(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id);
         }
@@ -127,10 +126,10 @@ public class ExperimentService {
     }
 
     @Transactional
-    public void hideSelected(List<UUID> runIds) {
+    public void hideSelected(List<Long> runIds) {
         var ids = selectedIds(runIds);
         var existing = new HashSet<>(tasks.lockTaskIds(ids));
-        for (UUID id : ids) {
+        for (Long id : ids) {
             if (!existing.contains(id)) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id);
             }
@@ -138,13 +137,13 @@ public class ExperimentService {
         tasks.hideExperiments(ids);
     }
 
-    private static List<UUID> selectedIds(List<UUID> runIds) {
+    private static List<Long> selectedIds(List<Long> runIds) {
         var errors = new ArrayList<FieldError>();
         if (runIds == null || runIds.isEmpty()) {
             errors.add(new FieldError("runIds", "Выберите хотя бы один запуск"));
         } else {
             for (int index = 0; index < runIds.size(); index++) {
-                if (runIds.get(index) == null) {
+                if (runIds.get(index) == null || runIds.get(index) <= 0) {
                     errors.add(new FieldError("runIds[" + index + "]", "Укажите идентификатор запуска"));
                 }
             }
@@ -153,18 +152,18 @@ public class ExperimentService {
         return List.copyOf(new LinkedHashSet<>(runIds));
     }
 
-    public String compare(List<UUID> runIds) {
+    public String compare(List<Long> runIds) {
         var ids = selectedIds(runIds);
         var errors = new ArrayList<FieldError>();
         var runs = tasks.findExperimentsByIds(ids).stream()
                 .collect(Collectors.toMap(ExperimentRun::id, Function.identity()));
-        for (UUID id : ids) {
+        for (Long id : ids) {
             if (!runs.containsKey(id)) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запуск не найден: " + id);
             }
         }
         var first = runs.get(ids.getFirst());
-        for (UUID id : ids) {
+        for (Long id : ids) {
             var run = runs.get(id);
             if (run.grafanaUrlTemplate() == null || run.grafanaUrlTemplate().isBlank()
                     || run.scenarioId() == null || run.scenarioId().isBlank()) {
@@ -176,7 +175,8 @@ public class ExperimentService {
         }
         InputValidation.rejectErrors(errors);
         try {
-            return GrafanaUrl.fromTemplate(first.grafanaUrlTemplate(), ids);
+            return GrafanaUrl.fromTemplate(first.grafanaUrlTemplate(),
+                    ids.stream().map(id -> runs.get(id).metricsId()).toList());
         } catch (IllegalArgumentException exception) {
             throw new InvalidExperimentException(List.of(new FieldError("runIds", exception.getMessage())));
         }

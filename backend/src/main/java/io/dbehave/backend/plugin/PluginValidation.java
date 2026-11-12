@@ -70,7 +70,7 @@ public final class PluginValidation {
             return false;
         }
         try {
-            var uri = URI.create(template.replace("{runId}", "00000000-0000-0000-0000-000000000000"));
+            var uri = URI.create(template.replace("{runId}", "1"));
             return ("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
                     && notBlank(uri.getHost());
         } catch (IllegalArgumentException exception) {

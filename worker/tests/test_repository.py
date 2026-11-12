@@ -147,3 +147,49 @@ def test_explicit_storage_paths_are_preserved_without_mutating_context():
     assert task.db_tmpfs_paths == ["/tmp", "/var/log/clickhouse-server"]
     assert context["workerOptions"]["dbTmpfsPaths"] == ["/tmp", "/var/log/clickhouse-server"]
     assert task.db_data_path == "/var/lib/clickhouse"
+
+
+def test_legacy_metric_label_does_not_replace_numeric_task_identity():
+    task = _to_submission(
+        {
+            "loaderImageName": "dbehave/postgres-load:0.1.0",
+            "databaseImageName": "postgres:18",
+            "loaderImageContext": {}, "databaseImageContext": {},
+        },
+        make_settings(), "42", "00000000-0000-0000-0000-000000000001",
+    )
+    assert task.id == "42"
+    assert task.metrics_id == "00000000-0000-0000-0000-000000000001"
+    assert "metrics_id" not in task.model_dump()
+
+
+def test_database_ids_preserve_bigint_precision_and_reject_invalid_input():
+    import pytest
+    from src.repository import _database_id
+
+    assert _database_id("9007199254740993") == 9007199254740993
+    assert _database_id("9223372036854775807") == 9223372036854775807
+    for value in ["0", "-1", "1.0", "a", " 1", "9223372036854775808", "١"]:
+        with pytest.raises(ValueError):
+            _database_id(value)
+
+
+async def test_task_creation_uses_database_generated_id():
+    from unittest.mock import AsyncMock, MagicMock
+    from src.models import TaskRequest
+    from src.repository import TaskRepository
+
+    connection = AsyncMock()
+    connection.fetchval.return_value = 9007199254740993
+    pool = MagicMock()
+    pool.acquire.return_value.__aenter__ = AsyncMock(return_value=connection)
+    pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+    repository = TaskRepository(make_settings())
+    repository._pool = pool
+    request = TaskRequest(db_image="postgres:18", loadgen_image="dbehave/postgres-load:0.1.0",
+                          cpu_cores=1, memory_mb=512)
+    assert await repository.create(request) == "9007199254740993"
+    sql, context = connection.fetchval.call_args.args
+    assert "RETURNING id" in sql
+    assert "(id," not in sql
+    assert isinstance(context, str)

@@ -13,7 +13,7 @@ import io.dbehave.plugin.postgres.PostgresContextCollector;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ExperimentController.class)
 @Import({PluginRegistry.class, PluginConfiguration.class, ExperimentService.class, JsonConfiguration.class, JsonbValidation.class})
 class ExperimentControllerTest {
+    private static final AtomicLong IDS = new AtomicLong(100);
     @Autowired
     private MockMvc mvc;
 
@@ -139,32 +140,34 @@ class ExperimentControllerTest {
 
     @Test
     void exposesSavedConfigurationAndDashboardTemplateOnRunDetails() throws Exception {
-        var id = UUID.randomUUID();
+        Long id = Long.MAX_VALUE;
         var configuration = new ExperimentRequest("postgres", "mixed", Map.of("shared_buffers", 128),
                 Map.of("clients", 16), Map.of("core_max", 0.5), Map.of("mem_max", 1024));
         String template = "https://grafana.test/?var-run_id={runId}";
         var run = new ExperimentRun(id, "QUEUED", Instant.EPOCH, Instant.EPOCH, null, null, null,
-                template.replace("{runId}", id.toString()) + "&kiosk=1", "postgres", "PostgreSQL", "mixed", "Mixed",
-                configuration, template);
+                template.replace("{runId}", String.valueOf(id)) + "&kiosk=1", "postgres", "PostgreSQL", "mixed", "Mixed",
+                configuration, template, String.valueOf(id));
         when(tasks.findExperimentById(id)).thenReturn(Optional.of(run));
 
         mvc.perform(get("/api/experiments/{id}", id))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("9223372036854775807"))
+                .andExpect(jsonPath("$.metricsId").value("9223372036854775807"))
                 .andExpect(jsonPath("$.configuration.settings.shared_buffers").value(128))
                 .andExpect(jsonPath("$.configuration.params.clients").value(16))
                 .andExpect(jsonPath("$.configuration.loaderImageContext.core_max").value(0.5))
-                .andExpect(jsonPath("$.grafanaUrl").value(template.replace("{runId}", id.toString()) + "&kiosk=1"))
+                .andExpect(jsonPath("$.grafanaUrl").value(template.replace("{runId}", String.valueOf(id)) + "&kiosk=1"))
                 .andExpect(jsonPath("$.grafanaUrlTemplate").value(template))
                 .andExpect(jsonPath("$.context").doesNotExist());
     }
 
     @Test
     void deletesVisibleAndPreviouslyHiddenRunsAndRejectsUnknownIds() throws Exception {
-        var id = UUID.randomUUID();
+        var id = IDS.incrementAndGet();
         when(tasks.hideExperiment(id)).thenReturn(true);
         mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
         mvc.perform(delete("/api/experiments/{id}", id)).andExpect(status().isNoContent());
-        mvc.perform(delete("/api/experiments/{id}", UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/experiments/{id}", IDS.incrementAndGet())).andExpect(status().isNotFound());
         verify(tasks, times(2)).hideExperiment(id);
     }
 
@@ -176,8 +179,8 @@ class ExperimentControllerTest {
 
     @Test
     void deletesOnlyTheSelectedRunsAndAcceptsRepeatedRequests() throws Exception {
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         when(tasks.lockTaskIds(List.of(first, second))).thenReturn(List.of(first, second));
         String body = "{\"runIds\":[\"" + first + "\",\"" + second + "\",\"" + first + "\"]}";
 
@@ -199,10 +202,11 @@ class ExperimentControllerTest {
         verify(tasks, never()).hideExperiments(any());
     }
 
-    @Test
-    void rejectsMalformedDeletionIdsWithoutClearingHistory() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"\"not-a-number\"", "1.5", "\"1.5\"", "0", "-1", "9223372036854775808"})
+    void rejectsMalformedDeletionIdsWithoutClearingHistory(String id) throws Exception {
         mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"runIds\":[\"not-a-uuid\"]}"))
+                        .content("{\"runIds\":[" + id + "]}"))
                 .andExpect(status().isBadRequest());
         verify(tasks, never()).hideAllExperiments();
         verify(tasks, never()).hideExperiments(any());
@@ -210,8 +214,8 @@ class ExperimentControllerTest {
 
     @Test
     void returnsNotFoundForUnknownBatchIdsWithoutHidingAnyRun() throws Exception {
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         when(tasks.lockTaskIds(List.of(first, second))).thenReturn(List.of(first));
         mvc.perform(delete("/api/experiments").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"runIds\":[\"" + first + "\",\"" + second + "\"]}"))
@@ -222,8 +226,8 @@ class ExperimentControllerTest {
 
     @Test
     void comparesRunsUsingRepeatedGrafanaVariablesInSelectionOrder() throws Exception {
-        var first = UUID.randomUUID();
-        var second = UUID.randomUUID();
+        var first = IDS.incrementAndGet();
+        var second = IDS.incrementAndGet();
         when(tasks.findExperimentsByIds(List.of(first, second)))
                 .thenReturn(List.of(comparableRun(first), comparableRun(second)));
 
@@ -245,18 +249,18 @@ class ExperimentControllerTest {
 
     @Test
     void comparisonReturnsNotFoundForMissingOrHiddenRuns() throws Exception {
-        var id = UUID.randomUUID();
+        var id = IDS.incrementAndGet();
         when(tasks.findExperimentsByIds(List.of(id))).thenReturn(List.of());
         mvc.perform(post("/api/experiments/compare").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"runIds\":[\"" + id + "\"]}"))
                 .andExpect(status().isNotFound());
     }
 
-    private static ExperimentRun comparableRun(UUID id) {
+    private static ExperimentRun comparableRun(Long id) {
         String template = "https://grafana.test/?var-run_id={runId}";
         return new ExperimentRun(id, "DONE", Instant.EPOCH, Instant.EPOCH, null, null, null,
-                template.replace("{runId}", id.toString()) + "&kiosk=1", "postgres", "PostgreSQL", "mixed", "Mixed",
-                null, template);
+                template.replace("{runId}", String.valueOf(id)) + "&kiosk=1", "postgres", "PostgreSQL", "mixed", "Mixed",
+                null, template, String.valueOf(id));
     }
 
     @Test

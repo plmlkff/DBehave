@@ -65,7 +65,6 @@ uvicorn worker.main:app --host 127.0.0.1 --port 8080
 
 ```json
 {
-  "id": "00000000-0000-4000-8000-000000000001",
   "db_image": "postgres:16",
   "loadgen_image": "ghcr.io/acme/pg-loadgen:1.2.0",
   "cpu_cores": 4,
@@ -108,12 +107,12 @@ curl -X POST http://127.0.0.1:8080/tasks \
   --data-binary @task.json
 ```
 
-Обычно задания создаются через DBehave backend (`POST /api/experiments`) и появляются в `worker.tasks` как `QUEUED`. Worker также сохраняет совместимый `POST /tasks` для ручной отправки; для него `id` должен быть UUID. Статусы в общей очереди: `QUEUED → RUNNING → SUCCEEDED | FAILED`.
+Обычно задания создаются через DBehave backend (`POST /api/experiments`) и появляются в `worker.tasks` как `QUEUED`. Worker также сохраняет совместимый `POST /tasks` для ручной отправки; для него `id` не передаётся: БД выдаёт `bigserial`, ответ содержит числовой ID в виде строки. Статусы в общей очереди: `QUEUED → RUNNING → SUCCEEDED | FAILED`.
 
 Получить состояние и ошибку задания через worker API:
 
 ```bash
-curl http://127.0.0.1:8080/tasks/00000000-0000-4000-8000-000000000001 \
+curl http://127.0.0.1:8080/tasks/1 \
   -H "Authorization: Bearer $WORKER_API_TOKEN"
 ```
 

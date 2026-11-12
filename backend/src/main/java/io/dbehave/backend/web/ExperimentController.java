@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -104,14 +103,14 @@ class ExperimentController {
 
     @GetMapping("/api/experiments/{id}")
     @Operation(summary = "Получить текущий статус запуска из таблицы воркера")
-    ExperimentRun status(@PathVariable UUID id) {
+    ExperimentRun status(@PathVariable Long id) {
         return experiments.status(id);
     }
 
     @DeleteMapping("/api/experiments/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Скрыть запуск из истории")
-    void hide(@PathVariable UUID id) {
+    void hide(@PathVariable Long id) {
         experiments.hide(id);
     }
 
@@ -160,7 +159,7 @@ class ExperimentController {
     public record ScenarioSummary(String id, String title, String description) {
     }
 
-    public record RunSelection(List<UUID> runIds) {
+    public record RunSelection(List<Long> runIds) {
     }
 
     public record ComparisonResult(String grafanaUrl) {
