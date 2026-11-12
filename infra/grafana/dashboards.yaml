@@ -9,3 +9,7 @@ providers:
     type: file
     options:
       path: /var/lib/grafana/dashboards/mongo
+  - name: dbehave-clickhouse
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards/clickhouse

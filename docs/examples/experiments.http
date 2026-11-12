@@ -180,6 +180,46 @@ Content-Type: application/json
 ### История последних 100 запусков
 GET {{baseUrl}}/api/experiments
 
+### ClickHouse: мелкие вставки через Buffer (для сравнения поменять buffered на false)
+POST {{baseUrl}}/api/experiments
+Content-Type: application/json
+
+{
+  "pluginId": "clickhouse",
+  "scenarioId": "small-inserts",
+  "params": {"clients": 4, "durationSec": 30, "warmupSec": 5, "batchSize": 1, "buffered": true}
+}
+
+### ClickHouse: чтение по ключу сортировки (для сравнения sortedKey=false)
+POST {{baseUrl}}/api/experiments
+Content-Type: application/json
+
+{
+  "pluginId": "clickhouse",
+  "scenarioId": "sorting-key",
+  "params": {"datasetRows": 300000, "rangeRows": 1000, "sortedKey": true}
+}
+
+### ClickHouse: поиск со skipping-индексом Bloom (для сравнения bloomFilter=false)
+POST {{baseUrl}}/api/experiments
+Content-Type: application/json
+
+{
+  "pluginId": "clickhouse",
+  "scenarioId": "bloom-filter",
+  "params": {"datasetRows": 300000, "bloomFilter": true}
+}
+
+### ClickHouse: ReplacingMergeTree с дедупликацией при чтении (для сравнения finalRead=false)
+POST {{baseUrl}}/api/experiments
+Content-Type: application/json
+
+{
+  "pluginId": "clickhouse",
+  "scenarioId": "replacing-merge-tree",
+  "params": {"datasetRows": 100000, "versions": 3, "finalRead": true}
+}
+
 ### Повторное открытие запуска со статусом и сохранённой ссылкой Grafana
 # configuration содержит нормализованные настройки, параметры и лимиты на момент запуска.
 # У запусков, созданных до добавления снимка параметров, configuration = null.

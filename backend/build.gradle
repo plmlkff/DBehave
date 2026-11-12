@@ -8,6 +8,7 @@ dependencies {
     implementation project(':plugin-api')
     implementation project(':plugins:postgres')
     implementation project(':plugins:mongo')
+    implementation project(':plugins:clickhouse')
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
