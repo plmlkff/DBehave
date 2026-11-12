@@ -28,3 +28,33 @@ export function getExperimentGrafanaUrl(run: GrafanaRun) {
     return null
   }
 }
+
+type ComparisonRun = GrafanaRun & Pick<ExperimentRun, 'id'>
+
+export function getExperimentComparisonGrafanaUrl(value: string, runs: readonly ComparisonRun[]) {
+  if (runs.length < 2) return null
+  const starts = runs.map(run => Date.parse(run.createdAt))
+  const ends = runs.map(run => Date.parse(run.updatedAt))
+  if (![...starts, ...ends].every(Number.isFinite)) return null
+
+  const finished = runs.every(run => isExperimentFinished(run.state))
+  const anchor = finished ? Math.max(...starts) : Math.min(...starts)
+  const longestDuration = Math.max(...ends.map((end, index) => Math.max(0, end - starts[index])))
+  const result = getExperimentGrafanaUrl({
+    grafanaUrl: value,
+    createdAt: new Date(anchor).toISOString(),
+    updatedAt: new Date(finished ? anchor + longestDuration : Math.max(...ends)).toISOString(),
+    state: finished ? 'SUCCEEDED' : 'RUNNING',
+  })
+  if (!result) return null
+
+  const url = new URL(result)
+  // Grafana повторяет строки по run_window: value = run_id, text = смещение в мс.
+  // Векторы передают только метаданные сравнения; метрики остаются в Prometheus.
+  const offsets = runs.map((run, index) => {
+    const offsetMs = finished ? anchor - starts[index] : 0
+    return `label_replace(vector(${offsetMs}), "run_id", ${JSON.stringify(run.id)}, "__name__", ".*")`
+  })
+  url.searchParams.set('var-run_offsets', offsets.join(' or '))
+  return url.toString()
+}

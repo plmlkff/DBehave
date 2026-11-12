@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent, SyntheticEvent } from 'react'
-import { ArrowUpRight, History, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { ArrowUpRight, GitCompareArrows, History, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import {
   deleteExperiments,
   experimentStateLabel,
+  getExperimentComparisonError,
   isExperimentFinished,
   useExperimentHistory,
 } from '@/entities/experiment'
@@ -18,8 +19,9 @@ import styles from './experiments-page.module.css'
 
 export function ExperimentsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { runs, error, loading, retry } = useExperimentHistory()
-  const [selection, setSelection] = useState<string[]>([])
+  const [selection, setSelection] = useState<string[]>(() => searchParams.getAll('runId'))
   const [deletion, setDeletion] = useState<string[] | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -29,6 +31,9 @@ export function ExperimentsPage() {
   const historyTitleRef = useRef<HTMLHeadingElement | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
   const selected = selectedRunIds(runs ?? [], selection)
+  const selectedRuns = (runs ?? []).filter(run => selected.includes(run.id))
+  const comparisonError = getExperimentComparisonError(selectedRuns)
+  const busy = deleting
   const allSelected = !!runs?.length && selected.length === runs.length
   const createExperiment = () => navigate(routes.newExperiment)
 
@@ -56,6 +61,11 @@ export function ExperimentsPage() {
   function toggleAllDisplayed() {
     setSelection(current => toggleAllRunSelection(runs ?? [], current))
     setActionError(null)
+  }
+
+  function compareSelected() {
+    if (requestRef.current || comparisonError) return
+    navigate(routes.experimentComparison(selected))
   }
 
   function cancelDelete() {
@@ -124,7 +134,7 @@ export function ExperimentsPage() {
         <div className={styles.toolbar}>
           <h2 id="history-title" ref={historyTitleRef} tabIndex={-1}>Последние 100 запусков</h2>
           <div className={styles.toolbarActions}>
-            <Button variant="secondary" onClick={retry} disabled={loading || deleting}>
+            <Button variant="secondary" onClick={retry} disabled={loading || busy}>
               <RefreshCw size={15} aria-hidden="true" />
               {loading ? 'Обновляем…' : 'Обновить'}
             </Button>
@@ -140,21 +150,21 @@ export function ExperimentsPage() {
                 type="checkbox"
                 aria-label="Выбрать все отображаемые запуски (последние 100)"
                 checked={allSelected}
-                disabled={deleting}
+                disabled={busy}
                 onChange={toggleAllDisplayed}
               />
               Выбрать все отображаемые
             </label>
             <p id="history-selection-hint" role="status">{selected.length
               ? `Выбрано ${selected.length}`
-              : 'Выберите запуски для удаления.'}</p>
+              : 'Выберите запуски для сравнения или удаления.'}</p>
             <div className={styles.toolbarActions}>
-              <Button variant="secondary" className={styles.dangerButton} onClick={showDeleteConfirmation} disabled={!selected.length || deleting} aria-describedby="history-selection-hint">
+              <Button variant="secondary" className={styles.dangerButton} onClick={showDeleteConfirmation} disabled={!selected.length || busy} aria-describedby="history-selection-hint">
                 <Trash2 size={15} aria-hidden="true" />
                 Удалить выбранные
               </Button>
               {!!selected.length && (
-                <Button variant="secondary" disabled={deleting} onClick={clearSelection}>Снять выделение</Button>
+                <Button variant="secondary" disabled={busy} onClick={clearSelection}>Снять выделение</Button>
               )}
             </div>
           </div>
@@ -165,7 +175,7 @@ export function ExperimentsPage() {
         {error && (
           <div className={styles.errorState}>
             <p role="alert">Не удалось обновить историю. {error}</p>
-            <Button variant="secondary" onClick={retry} disabled={loading || deleting}>Повторить</Button>
+            <Button variant="secondary" onClick={retry} disabled={loading || busy}>Повторить</Button>
           </div>
         )}
 
@@ -178,7 +188,7 @@ export function ExperimentsPage() {
                   type="checkbox"
                   aria-label={`Выбрать запуск ${run.id}`}
                   checked={selected.includes(run.id)}
-                  disabled={deleting}
+                  disabled={busy}
                   onChange={() => changeSelection(run.id)}
                 />
                 <div className={styles.experiment}>
@@ -221,6 +231,21 @@ export function ExperimentsPage() {
           </div>
         )}
       </Panel>
+      {!!runs?.length && (
+        <Panel className={styles.comparisonPanel} aria-labelledby="history-comparison-title">
+          <div className={styles.comparisonSummary}>
+            <h2 id="history-comparison-title">{selected.length ? `Выбрано запусков: ${selected.length}` : 'Сравнение запусков'}</h2>
+            <p id="history-comparison-hint" className={styles.comparisonHint} data-error={selected.length >= 2 && Boolean(comparisonError)} role="status">
+              {comparisonError ?? `${selectedRuns[0]?.pluginTitle ?? selectedRuns[0]?.pluginId} · ${selectedRuns[0]?.scenarioTitle ?? selectedRuns[0]?.scenarioId} · Совместимые запуски`}
+            </p>
+            {!!selected.length && <p className={styles.comparisonIds}>{selected.join(' · ')}</p>}
+          </div>
+          <Button onClick={compareSelected} disabled={Boolean(comparisonError) || busy} aria-describedby="history-comparison-hint">
+            <GitCompareArrows size={15} aria-hidden="true" />
+            Сравнить запуски
+          </Button>
+        </Panel>
+      )}
       <dialog
         ref={dialogRef}
         className={styles.deleteDialog}

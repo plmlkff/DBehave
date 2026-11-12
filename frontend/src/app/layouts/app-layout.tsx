@@ -11,6 +11,7 @@ export function AppLayout() {
   useEffect(() => {
     let title = 'Новый эксперимент'
     if (pathname === routes.experiments) title = 'История запусков'
+    else if (pathname === routes.experimentComparisonPattern) title = 'Сравнение запусков'
     else if (pathname.startsWith(`${routes.experiments}/`) && pathname !== routes.newExperiment) title = 'Запуск эксперимента'
     document.title = `${title} — DBehave`
     mainRef.current?.focus({ preventScroll: true })

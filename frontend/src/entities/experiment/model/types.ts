@@ -34,6 +34,7 @@ export type ExperimentRequest = {
 }
 
 export type ValidationResult = { status: string; execution: string }
+export type ExperimentComparison = { grafanaUrl: string }
 
 export type ExperimentRun = {
   id: string
@@ -49,4 +50,5 @@ export type ExperimentRun = {
   scenarioId: string | null
   scenarioTitle: string | null
   configuration: ExperimentRequest | null
+  grafanaUrlTemplate: string | null
 }

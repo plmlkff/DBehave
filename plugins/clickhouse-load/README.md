@@ -18,6 +18,10 @@ docker compose -f infra/compose.yaml up --build --wait
 [Swagger](http://localhost:8080/swagger-ui.html) и
 [дашборд ClickHouse](http://localhost:3001/d/dbehave-clickhouse) доступны отдельно.
 
+В сравнении каждый запуск отображается отдельной строкой. Завершённые запуски
+совмещаются по `createdAt` через скрытые переменные `run_offsets` и `run_window`,
+как в дашбордах PostgreSQL и MongoDB.
+
 Если в существующем `.env` уже задан `WORKER_ALLOWED_IMAGE_PREFIXES`, добавьте к
 нему `docker.io/clickhouse/`. В новом `.env.example` и настройках Compose этот
 префикс уже включён.

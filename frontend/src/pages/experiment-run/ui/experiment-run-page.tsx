@@ -6,7 +6,7 @@ import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel } from '@/shared/ui/panel'
 import { grafanaEmbedUrl } from '../model/grafana-url'
-import { RunConfiguration } from './run-configuration'
+import { RunConfiguration } from '@/widgets/run-configuration'
 import styles from './experiment-run-page.module.css'
 
 function timestamp(value: string | null) {

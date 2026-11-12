@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "",
   "time": {
@@ -56,6 +56,40 @@
         "hide": 0,
         "multi": true,
         "includeAll": false
+      },
+      {
+        "name": "run_offsets",
+        "type": "textbox",
+        "hide": 2,
+        "query": "vector(0)",
+        "current": {
+          "text": "vector(0)",
+          "value": "vector(0)"
+        }
+      },
+      {
+        "name": "run_window",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+          "refId": "run_window"
+        },
+        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+        "regex": "/run_id=\"(?<value>${run_id:regex})\".*?\\s+(?<text>[0-9]+)/",
+        "refresh": 1,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "skipUrlSync": true
       }
     ]
   },
@@ -82,7 +116,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (run_short, settings, scenario, params) (label_replace(max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[$__range]), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\"))",
+          "expr": "max by (run_short, settings, scenario, params) (label_replace(max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[30d]), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\"))",
           "format": "table",
           "instant": true,
           "legendFormat": ""
@@ -178,7 +212,7 @@
     },
     {
       "type": "row",
-      "title": "Ход запуска",
+      "title": "Запуск ${run_window:raw}",
       "id": 1,
       "collapsed": false,
       "gridPos": {
@@ -187,7 +221,9 @@
         "x": 0,
         "y": 5
       },
-      "panels": []
+      "panels": [],
+      "repeat": "run_window",
+      "repeatDirection": "v"
     },
     {
       "type": "state-timeline",
@@ -210,7 +246,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((((dbehave_phase{run_id=~\"$run_id\"} == 1)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((((dbehave_phase{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms == 1)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{phase}} · {{run_short}}"
         }
       ],
@@ -260,7 +296,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_progress_percent{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_progress_percent{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -316,7 +352,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_clients_active{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_clients_active{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -354,7 +390,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id) (dbehave_errors_total{run_id=~\"$run_id\"})) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id) (dbehave_errors_total{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -385,17 +421,19 @@
       }
     },
     {
-      "type": "row",
-      "title": "Клиенты",
+      "type": "text",
+      "title": "",
       "id": 6,
-      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 12
       },
-      "panels": []
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Клиенты</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -418,7 +456,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{op}} · {{run_short}}"
         }
       ],
@@ -465,7 +503,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "p50 {{op}} · {{run_short}}"
         },
         {
@@ -474,7 +512,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "p95 {{op}} · {{run_short}}"
         },
         {
@@ -483,7 +521,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "p99 {{op}} · {{run_short}}"
         }
       ],
@@ -529,7 +567,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{op}}: {{kind}} · {{run_short}}"
         }
       ],
@@ -576,7 +614,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((rate(dbehave_records_written_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -603,17 +641,19 @@
       "description": "Документы в успешно подтверждённых пачках write-heavy"
     },
     {
-      "type": "row",
-      "title": "ClickHouse",
+      "type": "text",
+      "title": "",
       "id": 40,
-      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 29
       },
-      "panels": []
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">ClickHouse</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -636,7 +676,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_clickhouse_active_parts{run_id=~\"$run_id\"}), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((dbehave_clickhouse_active_parts{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -683,7 +723,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_clickhouse_active_merges{run_id=~\"$run_id\"}), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((dbehave_clickhouse_active_merges{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -730,7 +770,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_rows_total{run_id=~\"$run_id\"}[$__rate_interval])) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval])), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_rows_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{op}} · {{run_short}}"
         }
       ],
@@ -777,7 +817,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval])), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((sum by(run_id, op) (rate(dbehave_clickhouse_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)) / clamp_min(sum by(run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), 0.001)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{op}} · {{run_short}}"
         }
       ],
@@ -824,7 +864,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((dbehave_clickhouse_stored_bytes{run_id=~\"$run_id\"}), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((dbehave_clickhouse_stored_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{run_short}}"
         }
       ],
@@ -871,7 +911,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((last_over_time(dbehave_clickhouse_verified_rows{run_id=~\"$run_id\"}[$__range])), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace((last_over_time(dbehave_clickhouse_verified_rows{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{kind}} · {{run_short}}",
           "instant": true,
           "range": false
@@ -900,17 +940,19 @@
       "description": "Итоговые счётчики: acknowledged/persisted — подтверждённые/сохранённые вставки; physical/logical/visible — физические строки/уникальные ключи/результат чтения ReplacingMergeTree. Сравнивайте запуски одного сценария."
     },
     {
-      "type": "row",
-      "title": "Ресурсы контейнеров задания",
+      "type": "text",
+      "title": "",
       "id": 23,
-      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 54
       },
-      "panels": []
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Ресурсы контейнеров задания</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -933,7 +975,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{role}} · {{run_short}}"
         }
       ],
@@ -979,7 +1021,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_worker_container_memory_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{role}} used · {{run_short}}"
         },
         {
@@ -988,7 +1030,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_worker_container_memory_limit_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{role}} limit · {{run_short}}"
         }
       ],
@@ -1035,7 +1077,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{role}} read · {{run_short}}"
         },
         {
@@ -1044,7 +1086,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{role}} write · {{run_short}}"
         }
       ],
@@ -1090,7 +1132,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace(((dbehave_worker_container_pids{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
+          "expr": "label_replace(((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"${run_window:regex}\"}[1h] offset ${run_window:text}ms))), \"run_short\", \"$1\", \"run_id\", \"^(.{8}).*\")",
           "legendFormat": "{{role}} · {{run_short}}"
         }
       ],

@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 9,
+  "version": 12,
   "editable": true,
   "refresh": "",
   "time": {
@@ -56,6 +56,40 @@
         "hide": 0,
         "multi": true,
         "includeAll": false
+      },
+      {
+        "name": "run_offsets",
+        "type": "textbox",
+        "hide": 2,
+        "query": "vector(0)",
+        "current": {
+          "text": "vector(0)",
+          "value": "vector(0)"
+        }
+      },
+      {
+        "name": "run_window",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+          "refId": "run_window"
+        },
+        "definition": "query_result((${run_offsets:raw}) or on (run_id) (0 * max by (run_id) (max_over_time(dbehave_phase{run_id=~\"$run_id\"}[30d]))))",
+        "regex": "/run_id=\"(?<value>${run_id:regex})\".*?\\s+(?<text>[0-9]+)/",
+        "refresh": 1,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "skipUrlSync": true
       }
     ]
   },
@@ -74,7 +108,7 @@
         "x": 0,
         "y": 0
       },
-      "description": "Выбранные запуски: сценарий, настройки PostgreSQL, отличающиеся от умолчаний, и параметры нагрузки. Этими подписями отмечены линии на графиках.",
+      "description": "Сценарий, настройки и параметры нагрузки выбранных запусков. В подписях графиков показаны первые 8 символов ID запуска; полный ID и настройки доступны в этой таблице.",
       "targets": [
         {
           "refId": "A",
@@ -82,7 +116,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (run_id, settings, scenario, params) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[$__range]))",
+          "expr": "max by (run_id, settings, scenario, params) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[30d]))",
           "format": "table",
           "instant": true,
           "legendFormat": ""
@@ -125,7 +159,7 @@
     },
     {
       "type": "row",
-      "title": "Ход запуска",
+      "title": "Запуск ${run_window:raw}",
       "id": 1,
       "collapsed": false,
       "gridPos": {
@@ -134,19 +168,21 @@
         "x": 0,
         "y": 5
       },
-      "panels": []
+      "panels": [],
+      "repeat": "run_window",
+      "repeatDirection": "v"
     },
     {
       "type": "state-timeline",
-      "title": "Фаза",
+      "title": "Этапы эксперимента",
       "id": 2,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 12,
+        "h": 4,
+        "w": 24,
         "x": 0,
         "y": 6
       },
@@ -157,8 +193,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_phase{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{phase}}"
+          "expr": "label_replace(sum by (run_id) ((dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"STARTING\"} offset ${run_window:text}ms * 1) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"PREPARING\"} offset ${run_window:text}ms * 2) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"WARMUP\"} offset ${run_window:text}ms * 3) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"LOAD\"} offset ${run_window:text}ms * 4) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"VERIFYING\"} offset ${run_window:text}ms * 5) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"DONE\"} offset ${run_window:text}ms * 6) or (dbehave_phase{run_id=~\"${run_window:regex}\",phase=\"FAILED\"} offset ${run_window:text}ms * 7)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}}"
         }
       ],
       "fieldConfig": {
@@ -167,38 +203,79 @@
             {
               "type": "value",
               "options": {
-                "0": {
-                  "text": " ",
-                  "color": "transparent"
-                },
                 "1": {
-                  "text": "активна",
+                  "text": "Запуск",
+                  "color": "purple"
+                },
+                "2": {
+                  "text": "Подготовка",
+                  "color": "light-blue"
+                },
+                "3": {
+                  "text": "Прогрев",
+                  "color": "yellow"
+                },
+                "4": {
+                  "text": "Нагрузка",
                   "color": "blue"
+                },
+                "5": {
+                  "text": "Проверка",
+                  "color": "orange"
+                },
+                "6": {
+                  "text": "Завершён",
+                  "color": "green"
+                },
+                "7": {
+                  "text": "Ошибка",
+                  "color": "red"
                 }
               }
             }
-          ]
+          ],
+          "noValue": "—",
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
       "options": {
         "showValue": "never",
-        "mergeValues": true
-      }
+        "mergeValues": true,
+        "rowHeight": 0.7,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "description": "Одна строка на запуск. Цвета этапов указаны в легенде; подробности видны при наведении. Промежутки без измерений остаются пустыми."
     },
     {
-      "type": "gauge",
-      "title": "Прогресс фазы",
+      "type": "stat",
+      "title": "Прогресс последней фазы",
       "id": 3,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 12,
-        "y": 6
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 10
       },
       "targets": [
         {
@@ -207,8 +284,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_progress_percent{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}}"
+          "expr": "label_replace(last_over_time(dbehave_progress_percent{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -229,25 +307,45 @@
               }
             ]
           },
-          "noValue": "0"
+          "noValue": "—",
+          "decimals": 0
         },
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 28
+        }
+      },
+      "description": "Последний измеренный прогресс для каждого запуска. При ошибке последняя фаза может остаться незавершённой."
     },
     {
       "type": "stat",
-      "title": "Активные клиенты",
+      "title": "Пик активных клиентов",
       "id": 4,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 16,
-        "y": 6
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 10
       },
       "targets": [
         {
@@ -256,17 +354,42 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_clients_active{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}}"
+          "expr": "label_replace(max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "0"
+          "noValue": "—",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 28
+        }
+      },
+      "description": "Максимум одновременно работающих клиентов за выбранный период. После завершения текущее число клиентов становится нулевым; для сравнения здесь показан пик."
     },
     {
       "type": "stat",
@@ -277,10 +400,10 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 20,
-        "y": 6
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 10
       },
       "targets": [
         {
@@ -289,8 +412,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id) (dbehave_errors_total{run_id=~\"$run_id\"})) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}}"
+          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -308,24 +432,50 @@
               }
             ]
           },
-          "noValue": "0"
+          "noValue": "—",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          }
         },
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 28
+        }
+      },
+      "description": "Суммарное число ошибок по всем операциям каждого запуска за выбранный период. Ноль выводится только для запусков с измерениями нагрузчика."
     },
     {
-      "type": "row",
-      "title": "Клиенты",
+      "type": "text",
+      "title": "",
       "id": 6,
-      "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 14
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Клиенты</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -339,7 +489,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 16
       },
       "targets": [
         {
@@ -348,8 +498,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{op}} · {{run_id}}"
+          "expr": "label_replace((sum by (run_id, op) (rate(dbehave_operations_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{op}}"
         }
       ],
       "fieldConfig": {
@@ -365,11 +515,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "description": "Успешных операций в секунду по типам"
@@ -386,7 +539,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 16
       },
       "targets": [
         {
@@ -395,8 +548,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · p50 {{op}} · {{run_id}}"
+          "expr": "label_replace((histogram_quantile(0.5, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · p50 {{op}}"
         },
         {
           "refId": "B",
@@ -404,8 +557,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · p95 {{op}} · {{run_id}}"
+          "expr": "label_replace((histogram_quantile(0.95, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · p95 {{op}}"
         },
         {
           "refId": "C",
@@ -413,8 +566,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"$run_id\"}[$__rate_interval])))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · p99 {{op}} · {{run_id}}"
+          "expr": "label_replace((histogram_quantile(0.99, sum by (run_id, le, op) (rate(dbehave_operation_duration_seconds_bucket{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · p99 {{op}}"
         }
       ],
       "fieldConfig": {
@@ -430,11 +583,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
@@ -450,7 +606,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 24
       },
       "targets": [
         {
@@ -459,8 +615,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{op}}: {{kind}} · {{run_id}}"
+          "expr": "label_replace((sum by (run_id, op, kind) (rate(dbehave_errors_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{op}}: {{kind}}"
         }
       ],
       "fieldConfig": {
@@ -476,11 +632,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "description": "serialization_failure, deadlock, lock_timeout и т. д."
@@ -497,7 +656,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 24
       },
       "targets": [
         {
@@ -506,8 +665,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{name}}"
+          "expr": "label_replace((sum by (run_id, name) (rate(dbehave_scenario_events_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{name}}"
         },
         {
           "refId": "B",
@@ -515,8 +674,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_scenario_value{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{name}}"
+          "expr": "label_replace((dbehave_scenario_value{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{name}}"
         }
       ],
       "fieldConfig": {
@@ -531,11 +690,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "description": "Повторы транзакций, неповторяемые чтения, удержание блокировки (blocker_holding = 1)"
@@ -543,7 +705,7 @@
     {
       "type": "timeseries",
       "title": "Подтверждённые записи в секунду",
-      "id": 29,
+      "id": 33,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -552,7 +714,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 32
       },
       "targets": [
         {
@@ -561,8 +723,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(rate(dbehave_records_written_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{run_id}}"
+          "expr": "label_replace(rate(dbehave_records_written_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}}"
         }
       ],
       "fieldConfig": {
@@ -588,17 +750,20 @@
       "description": "Строки в успешно подтверждённых пачках write-heavy"
     },
     {
-      "type": "row",
-      "title": "PostgreSQL",
+      "type": "text",
+      "title": "",
       "id": 11,
-      "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 40
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">PostgreSQL</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -612,7 +777,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 38
+        "y": 42
       },
       "targets": [
         {
@@ -621,8 +786,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_db_connections{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{state}}"
+          "expr": "label_replace((dbehave_db_connections{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{state}}"
         },
         {
           "refId": "B",
@@ -630,8 +795,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_db_lock_waiters{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · ждут блокировку"
+          "expr": "label_replace((dbehave_db_lock_waiters{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · ждут блокировку"
         }
       ],
       "fieldConfig": {
@@ -646,11 +811,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
@@ -666,7 +834,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 38
+        "y": 42
       },
       "targets": [
         {
@@ -675,8 +843,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_db_lock_wait_max_seconds{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · самое долгое ожидание блокировки"
+          "expr": "label_replace((dbehave_db_lock_wait_max_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · самое долгое ожидание блокировки"
         },
         {
           "refId": "B",
@@ -684,8 +852,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_db_oldest_transaction_seconds{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · возраст старейшей транзакции"
+          "expr": "label_replace((dbehave_db_oldest_transaction_seconds{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · возраст старейшей транзакции"
         }
       ],
       "fieldConfig": {
@@ -701,11 +869,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
@@ -721,7 +892,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 38
+        "y": 42
       },
       "targets": [
         {
@@ -730,8 +901,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{result}}"
+          "expr": "label_replace((sum by (run_id, result) (rate(dbehave_db_transactions_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{result}}"
         }
       ],
       "fieldConfig": {
@@ -747,11 +918,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
@@ -767,7 +941,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 46
+        "y": 50
       },
       "targets": [
         {
@@ -776,8 +950,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"$run_id\",source=\"hit\"}[$__rate_interval])) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · cache hit"
+          "expr": "label_replace((sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\",source=\"hit\"}[$__rate_interval] offset ${run_window:text}ms)) / sum by (run_id) (rate(dbehave_db_blocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · cache hit"
         }
       ],
       "fieldConfig": {
@@ -795,11 +969,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
@@ -815,7 +992,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 46
+        "y": 50
       },
       "targets": [
         {
@@ -824,8 +1001,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(rate(dbehave_db_wal_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · WAL, байт/с"
+          "expr": "label_replace((rate(dbehave_db_wal_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · WAL, байт/с"
         },
         {
           "refId": "B",
@@ -833,8 +1010,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · чекпоинты"
+          "expr": "label_replace((sum by (run_id) (increase(dbehave_db_checkpoints_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · чекпоинты"
         }
       ],
       "fieldConfig": {
@@ -871,11 +1048,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
@@ -891,7 +1071,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 46
+        "y": 50
       },
       "targets": [
         {
@@ -900,8 +1080,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(rate(dbehave_db_temp_bytes_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · байт/с на диск"
+          "expr": "label_replace((rate(dbehave_db_temp_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · байт/с на диск"
         }
       ],
       "fieldConfig": {
@@ -917,11 +1097,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "description": "Сортировки и хеши, которым не хватило work_mem"
@@ -938,7 +1121,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 54
+        "y": 58
       },
       "targets": [
         {
@@ -947,8 +1130,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_db_tuples{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{state}}"
+          "expr": "label_replace((dbehave_db_tuples{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{state}}"
         }
       ],
       "fieldConfig": {
@@ -963,11 +1146,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "description": "Мёртвые версии копятся, если autovacuum выключен или его держит долгая транзакция"
@@ -984,7 +1170,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 54
+        "y": 58
       },
       "targets": [
         {
@@ -993,8 +1179,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(increase(dbehave_db_deadlocks_total{run_id=~\"$run_id\"}[$__rate_interval])) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · deadlocks"
+          "expr": "label_replace((increase(dbehave_db_deadlocks_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms)), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · deadlocks"
         }
       ],
       "fieldConfig": {
@@ -1009,40 +1195,46 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
     {
-      "type": "row",
-      "title": "Проверки после нагрузки",
+      "type": "text",
+      "title": "",
       "id": 20,
-      "collapsed": false,
       "gridPos": {
-        "h": 1,
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 66
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Проверки после нагрузки</h2></div>"
+      }
     },
     {
       "type": "stat",
-      "title": "Результат проверки",
+      "title": "Итог проверки данных",
       "id": 21,
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
+        "h": 3,
+        "w": 24,
         "x": 0,
-        "y": 63
+        "y": 68
       },
       "targets": [
         {
@@ -1051,50 +1243,75 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_check_passed{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{check}}"
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_passed{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Неповторяемое чтение\", \"check\", \"non-repeatable-read\"), \"measure\", \"Потерянное обновление\", \"check\", \"lost-update\"), \"measure\", \"Перекос записи\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "noValue": "Нет итоговой проверки",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
           "mappings": [
             {
               "type": "value",
               "options": {
-                "1": {
-                  "text": "Аномалий нет",
-                  "color": "green"
+                "-1": {
+                  "text": "Нет итоговой проверки",
+                  "color": "gray"
                 },
                 "0": {
-                  "text": "Найдены аномалии",
+                  "text": "Обнаружены аномалии",
                   "color": "red"
+                },
+                "1": {
+                  "text": "Аномалий не обнаружено",
+                  "color": "green"
                 }
               }
             }
-          ],
-          "noValue": "0"
+          ]
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
-        "textMode": "value_and_name"
-      }
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 24
+        }
+      },
+      "description": "Показывает результат итоговой проверки сценария. Отсутствие проверки не означает успешное прохождение."
     },
     {
-      "type": "stat",
-      "title": "Ожидалось / получено / аномалий",
       "id": 22,
+      "type": "stat",
+      "title": "Ожидалось без аномалий",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
-        "w": 16,
-        "x": 8,
-        "y": 63
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 71
       },
+      "description": "Для неповторяемого чтения — число завершённых читающих транзакций. Ожидается, что в каждой из них оба SELECT дадут одинаковый результат. В других проверках единица измерения указана под заголовком.",
       "targets": [
         {
           "refId": "A",
@@ -1102,33 +1319,287 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_check_value{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{check}}: {{kind}}"
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_value{run_id=~\"${run_window:regex}\",kind=\"expected\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Транзакций с повторным чтением\", \"check\", \"non-repeatable-read\"), \"measure\", \"Увеличений счётчиков\", \"check\", \"lost-update\"), \"measure\", \"Смен с дежурным врачом\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "0"
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
       "options": {
-        "textMode": "value_and_name"
-      },
-      "description": "lost-update: успешные коммиты и сумма счётчиков; write-skew: смены; non-repeatable-read: читающие транзакции"
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
     },
     {
-      "type": "row",
-      "title": "Ресурсы контейнеров задания",
-      "id": 23,
-      "collapsed": false,
+      "id": 29,
+      "type": "stat",
+      "title": "Получено без аномалий",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
       "gridPos": {
-        "h": 1,
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 71
+      },
+      "description": "Для неповторяемого чтения — число читающих транзакций, в которых два чтения дали одинаковые значения. Это результат проверки данных, а не общее число COMMIT.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_value{run_id=~\"${run_window:regex}\",kind=\"actual\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Транзакций с повторным чтением\", \"check\", \"non-repeatable-read\"), \"measure\", \"Увеличений счётчиков\", \"check\", \"lost-update\"), \"measure\", \"Смен с дежурным врачом\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "stat",
+      "title": "Обнаружено аномалий",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 71
+      },
+      "description": "Для неповторяемого чтения — число читающих транзакций, в которых одинаковый SELECT дважды вернул разные значения. Ноль означает, что среди завершённых проверок аномалии не найдены.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(label_replace(label_replace(label_replace(last_over_time(dbehave_check_value{run_id=~\"${run_window:regex}\",kind=\"anomalies\"}[$__range] offset ${run_window:text}ms) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Итоговая проверка\", \"run_id\", \".*\"), \"measure\", \"Несовпадений двух чтений\", \"check\", \"non-repeatable-read\"), \"measure\", \"Потерянных увеличений\", \"check\", \"lost-update\"), \"measure\", \"Смен без дежурных\", \"check\", \"write-skew\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Транзакции с COMMIT",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 71
+      },
+      "description": "Для сценариев изоляции — число транзакций нагрузчика, завершившихся без SQL-ошибки. Включает читающие и пишущие транзакции, в том числе с аномалиями. Служебные запросы сборщика статистики не учитываются. Счётчик включает прогрев.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "label_replace(sum by (run_id) (max_over_time(dbehave_operations_total{run_id=~\"${run_window:regex}\",op=~\"transaction|read_transaction|write\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * last_over_time(dbehave_check_passed{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms)) or on (run_id) (0 * max_over_time(dbehave_clients_active{run_id=~\"${run_window:regex}\"}[$__range] offset ${run_window:text}ms) - 1), \"measure\", \"Чтение и запись · включая аномалии\", \"run_id\", \".*\")",
+          "legendFormat": "{{measure}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "Нет данных",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Нет итоговых данных",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "orientation": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "id": 23,
+      "gridPos": {
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 69
+        "y": 75
       },
-      "panels": []
+      "transparent": true,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"height:100%;display:flex;align-items:flex-end;box-sizing:border-box;padding:0 0 8px;border-bottom:1px solid rgba(145,153,164,0.25)\"><h2 style=\"margin:0;font-size:20px;font-weight:600;line-height:26px\">Ресурсы контейнеров задания</h2></div>"
+      }
     },
     {
       "type": "timeseries",
@@ -1142,7 +1613,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 70
+        "y": 77
       },
       "targets": [
         {
@@ -1151,8 +1622,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{role}}"
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_cpu_seconds_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{role}}"
         }
       ],
       "fieldConfig": {
@@ -1166,13 +1637,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       }
     },
@@ -1188,7 +1660,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 70
+        "y": 77
       },
       "targets": [
         {
@@ -1197,8 +1669,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_worker_container_memory_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{role}} used"
+          "expr": "label_replace((dbehave_worker_container_memory_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{role}} used"
         },
         {
           "refId": "B",
@@ -1206,8 +1678,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_worker_container_memory_limit_bytes{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{role}} limit"
+          "expr": "label_replace((dbehave_worker_container_memory_limit_bytes{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{role}} limit"
         }
       ],
       "fieldConfig": {
@@ -1221,13 +1693,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       }
     },
@@ -1244,7 +1717,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 78
+        "y": 85
       },
       "targets": [
         {
@@ -1253,8 +1726,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{role}} read"
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_read_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{role}} read"
         },
         {
           "refId": "B",
@@ -1262,8 +1735,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"$run_id\"}[$__rate_interval]))) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{role}} write"
+          "expr": "label_replace((sum by (run_id, role) (rate(dbehave_worker_container_block_io_write_bytes_total{run_id=~\"${run_window:regex}\"}[$__rate_interval] offset ${run_window:text}ms))), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{role}} write"
         }
       ],
       "fieldConfig": {
@@ -1277,13 +1750,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       }
     },
@@ -1299,7 +1773,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 78
+        "y": 85
       },
       "targets": [
         {
@@ -1308,8 +1782,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(dbehave_worker_container_pids{run_id=~\"$run_id\"}) * on (run_id) group_left (settings) max by (run_id, settings) (max_over_time(dbehave_run_info{run_id=~\"$run_id\"}[1h]))",
-          "legendFormat": "{{settings}} · {{role}}"
+          "expr": "label_replace((dbehave_worker_container_pids{run_id=~\"${run_window:regex}\"} offset ${run_window:text}ms), \"run\", \"$1\", \"run_id\", \"(.{8}).*\")",
+          "legendFormat": "Запуск {{run}} · {{role}}"
         }
       ],
       "fieldConfig": {
@@ -1323,13 +1797,14 @@
       },
       "options": {
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       }
     }
